@@ -11,26 +11,26 @@ const Q5 = Math.floor(Q/20);
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
-const NORTH		= 0b00000001;
-const NORTHEAST	= 0b00000010;
-const EAST		= 0b00000100;
-const SOUTHEAST	= 0b00001000;
-const SOUTH		= 0b00010000;
-const SOUTHWEST	= 0b00100000;
-const WEST		= 0b01000000;
-const NORTHWEST	= 0b10000000;
+const NORTH     = 0b00000001;
+const NORTHEAST = 0b00000010;
+const EAST      = 0b00000100;
+const SOUTHEAST = 0b00001000;
+const SOUTH     = 0b00010000;
+const SOUTHWEST = 0b00100000;
+const WEST      = 0b01000000;
+const NORTHWEST = 0b10000000;
 
 const bit2point = [
-		{ bit: NORTH,		x: Q50,	y:0,	},
-		{ bit: NORTHEAST,	x: Q,	y:0,	},
-		{ bit: EAST,		x: Q,	y:Q50,	},
-		{ bit: SOUTHEAST,	x: Q,	y:Q,	},
-		{ bit: SOUTH,		x: Q50,	y:Q,	},
-		{ bit: SOUTHWEST,	x: 0,	y:Q,	},
-		{ bit: WEST,		x: 0,	y:Q50,	},
-		{ bit: NORTHWEST,	x: 0,	y:0,	}
-	];
-	
+        { bit: NORTH,       x: Q50, y:0    },
+        { bit: NORTHEAST,   x: Q,   y:0    },
+        { bit: EAST,        x: Q,   y:Q50  },
+        { bit: SOUTHEAST,   x: Q,   y:Q    },
+        { bit: SOUTH,       x: Q50, y:Q    },
+        { bit: SOUTHWEST,   x: 0,   y:Q    },
+        { bit: WEST,        x: 0,   y:Q50  },
+        { bit: NORTHWEST,   x: 0,   y:0    }
+    ];
+
 const PLACE_COIN_CHANCE = 0.5;
 const JUMBLE_COIN_CHANCE = 0.8;
 
@@ -51,89 +51,89 @@ function main()
 
 function addStyle()
 {
-	const css = `svg:hover { stroke: ${HIGHLIGHT_COLOR}; }`;
-	const style = document.createElement('style');
-	if (style.styleSheet) 
-	{
-		style.styleSheet.cssText = css;
-	}
-	else 
-	{
-		style.appendChild(document.createTextNode(css));
-	}
-	document.getElementsByTagName('head')[0].appendChild(style);
+    const css = `svg:hover { stroke: ${HIGHLIGHT_COLOR}; }`;
+    const style = document.createElement('style');
+    if (style.styleSheet)
+    {
+        style.styleSheet.cssText = css;
+    }
+    else
+    {
+        style.appendChild(document.createTextNode(css));
+    }
+    document.getElementsByTagName('head')[0].appendChild(style);
 }
 
 function removeStyle()
 {
-	const ele = document.querySelector("head>style");
-	if ( ele )
-		ele.parentNode.removeChild(ele);
+    const ele = document.querySelector("head>style");
+    if ( ele )
+        ele.parentNode.removeChild(ele);
 }
 
 class Tile
 {
-	constructor()
-	{
-		this.n = null;
-		this.ne = null;
-		this.e = null;
-		this.se = null;
-		this.s = null;
-		this.sw = null;
-		this.w = null;
-		this.nw = null;
+    constructor()
+    {
+        this.n = null;
+        this.ne = null;
+        this.e = null;
+        this.se = null;
+        this.s = null;
+        this.sw = null;
+        this.w = null;
+        this.nw = null;
 
-		this.coins = this.originalCoins = 0;
+        this.coins = this.originalCoins = 0;
 
-		this.div = null;
-	}
+        this.div = null;
+    }
 
-	bitCount()
-	{
-		return this.coins.toString(2).split('1').length-1;
-	}
-	
-	getSinglePoint()
-	{
-		const b2p = bit2point.find( ele => this.coins & ele.bit );
-		if ( b2p )
-			return { x:b2p.x, y:b2p.y };
-		throw new Error(`Bit ${this.coins} not found`);
-	}
+    bitCount()
+    {
+        return this.coins.toString(2).split('1').length-1;
+    }
+
+    getSinglePoint()
+    {
+        const b2p = bit2point.find( ele => this.coins & ele.bit );
+        if ( b2p )
+            return { x:b2p.x, y:b2p.y };
+        throw new Error(`Bit ${this.coins} not found`);
+    }
 
     spinSVG(degrees=45)
     {
-		const that = this;
+        const that = this;
         let angle = 5;
-        
-		const g = this.div.querySelector("g");
+
+        const g = this.div.querySelector("g");
         const tilt = function()
-		{
+        {
             g.setAttributeNS(null, 'transform', `rotate(${angle} ${Q50},${Q50})`);
             angle += 5;
             if ( angle < degrees )
                 window.requestAnimationFrame(tilt);
-			else
-				window.requestAnimationFrame(that.setGraphic.bind(that));
+            else
+                window.requestAnimationFrame(that.setGraphic.bind(that));
         };
         window.requestAnimationFrame(tilt);
     }
-    
+
     unspinSVG(degrees=45)
     {
-		const that = this;
+        const that = this;
         let angle = 5;
-        
-		const g = this.div.querySelector("g");
+
+        const g = this.div.querySelector("g");
         const tilt = function()
-		{
+        {
             g.setAttributeNS(null, 'transform', `rotate(-${angle} ${Q50},${Q50})`);
             angle += 5;
             if ( angle < degrees )
                 window.requestAnimationFrame(tilt);
-			else
-				window.requestAnimationFrame(that.setGraphic.bind(that));
+            else
+                window.requestAnimationFrame(that.setGraphic.bind(that));
         };
         window.requestAnimationFrame(tilt);
     }
@@ -153,7 +153,7 @@ class Tile
         else
             this.coins = this.coins >> 1;
     }
-    
+
     rotate()
     {
         if ( this.coins === 0  )
@@ -242,7 +242,7 @@ class Tile
                 return false;
         return true;
     }
-    
+
     placeCoin()
     {
         if ( this.e )
@@ -298,110 +298,110 @@ class Tile
             }
         }
     }
-    
+
     // Tile implements the handleEvent interface
     handleEvent(event)
     {
         if ( event.type != "click" )
-		{
-			console.log(event);
+        {
+            console.log(event);
             return;
-		}
-        
+        }
+
         if ( this.isGridComplete() )
-			return;
-		
-		if ( event.altKey )
-		{
-			this.coins = this.originalCoins;
-			this.setGraphic();
-		}
-		else if ( event.shiftKey || event.ctrlKey )
+            return;
+
+        if ( event.altKey )
+        {
+            this.coins = this.originalCoins;
+            this.setGraphic();
+        }
+        else if ( event.shiftKey || event.ctrlKey )
             this.unrotate();
         else
             this.rotate();
-        
+
         if ( this.isGridComplete() )
         {
-			removeStyle();
-			// TODO async/Promise?
+            removeStyle();
+            // TODO async/Promise?
             const it = this.createIterator();
             window.setTimeout( () => {
                 for ( const t of it )
-					t.strokeItBlack(COMPLETED_COLOR);
+                    t.strokeItBlack(COMPLETED_COLOR);
             }, 500);
         }
     }
-	
-	strokeItBlack(strokeColor=COMPLETED_COLOR)
-	{
-		let ele = this.div.querySelector("circle");
-		if ( ele )
-			ele.setAttributeNS(null, 'fill', strokeColor);
-		ele = this.div.querySelector("svg");
-		if ( ele )
-			ele.setAttributeNS(null, 'stroke', strokeColor);
-	}
-    
+
+    strokeItBlack(strokeColor=COMPLETED_COLOR)
+    {
+        let ele = this.div.querySelector("circle");
+        if ( ele )
+            ele.setAttributeNS(null, 'fill', strokeColor);
+        ele = this.div.querySelector("svg");
+        if ( ele )
+            ele.setAttributeNS(null, 'stroke', strokeColor);
+    }
+
     setGraphic()
     {
         if ( 0 === this.coins )
             return;
-        
+
         const svg = document.createElementNS(SVG_NAMESPACE, 'svg');
         svg.setAttributeNS(null, 'width', Q);
         svg.setAttributeNS(null, 'height', Q);
-		svg.setAttributeNS(null, 'stroke', INPROGRESS_COLOR);
-		svg.setAttributeNS(null, 'stroke-width', 1);
-		svg.setAttributeNS(null, 'fill', 'none');
+        svg.setAttributeNS(null, 'stroke', INPROGRESS_COLOR);
+        svg.setAttributeNS(null, 'stroke-width', 1);
+        svg.setAttributeNS(null, 'fill', 'none');
         this.div.addEventListener("click", this);
-		
-		const g = document.createElementNS(SVG_NAMESPACE, 'g');
-		svg.appendChild(g);
 
-		const numBits = this.bitCount();
-		if ( 1 == numBits )
-		{
-			let ele = document.createElementNS(SVG_NAMESPACE, 'line');
-				const pt = this.getSinglePoint();
-				ele.setAttributeNS(null, 'x1', pt.x);
-				ele.setAttributeNS(null, 'y1', pt.y);
-				ele.setAttributeNS(null, 'x2', Q50);
-				ele.setAttributeNS(null, 'y2', Q50);
-			g.appendChild(ele);
-				
-			ele = document.createElementNS(SVG_NAMESPACE, 'circle');
-				ele.setAttributeNS(null, 'r', Q5);
-				ele.setAttributeNS(null, 'cx', Q50);
-				ele.setAttributeNS(null, 'cy', Q50);
-				ele.setAttributeNS(null, 'fill', HIGHLIGHT_COLOR);
-			g.appendChild(ele);
-		}
-		else
-		{
+        const g = document.createElementNS(SVG_NAMESPACE, 'g');
+        svg.appendChild(g);
+
+        const numBits = this.bitCount();
+        if ( 1 == numBits )
+        {
+            let ele = document.createElementNS(SVG_NAMESPACE, 'line');
+                const pt = this.getSinglePoint();
+                ele.setAttributeNS(null, 'x1', pt.x);
+                ele.setAttributeNS(null, 'y1', pt.y);
+                ele.setAttributeNS(null, 'x2', Q50);
+                ele.setAttributeNS(null, 'y2', Q50);
+            g.appendChild(ele);
+
+            ele = document.createElementNS(SVG_NAMESPACE, 'circle');
+                ele.setAttributeNS(null, 'r', Q5);
+                ele.setAttributeNS(null, 'cx', Q50);
+                ele.setAttributeNS(null, 'cy', Q50);
+                ele.setAttributeNS(null, 'fill', HIGHLIGHT_COLOR);
+            g.appendChild(ele);
+        }
+        else
+        {
 /*
-	The initial M directive moves the pen to the first point (100,100). 
-	Two co-ordinates follow the ‘Q’; the single control point (50,50) and the final point we’re drawing to (0,0).
-	It draws perfectly good straight lines, too, so no need for separate 'line' element.
+    The initial M directive moves the pen to the first point (100,100).
+    Two co-ordinates follow the ‘Q’; the single control point (50,50) and the final point we’re drawing to (0,0).
+    It draws perfectly good straight lines, too, so no need for separate 'line' element.
 */
-			let path = "";
-			for ( let b2p of bit2point )
-			{
-				if ( this.coins & b2p.bit )
-				{
-					if ( path.length === 0 )
-						path = `M${b2p.x},${b2p.y}`;
-					else
-						path = path.concat(` Q${Q50},${Q50} ${b2p.x},${b2p.y}`);
-				}
-			}
-			
-			const ele = document.createElementNS(SVG_NAMESPACE, 'path');
-			ele.setAttributeNS(null, 'd', path);
-			g.appendChild(ele);
-		}
-		
-		// this.div > svg > g > path|circle|line
+            let path = "";
+            for ( let b2p of bit2point )
+            {
+                if ( this.coins & b2p.bit )
+                {
+                    if ( path.length === 0 )
+                        path = `M${b2p.x},${b2p.y}`;
+                    else
+                        path = path.concat(` Q${Q50},${Q50} ${b2p.x},${b2p.y}`);
+                }
+            }
+
+            const ele = document.createElementNS(SVG_NAMESPACE, 'path');
+            ele.setAttributeNS(null, 'd', path);
+            g.appendChild(ele);
+        }
+
+        // this.div > svg > g > path|circle|line
         while ( this.div.lastChild )
             this.div.removeChild(this.div.lastChild);
         this.div.appendChild(svg);
@@ -432,15 +432,15 @@ function GridOfTiles(numX=7, numY=5)
             tPrev = t.s;
         }
     }
-	
+
     const it = this.createIterator();
     for ( const t of it )
     {
-		if ( t.e && t.e.n ) { t.ne = t.e.n; t.e.n.sw = t; }			// NORTHEAST
-		if ( t.e && t.e.s ) { t.se = t.e.s; t.e.s.nw = t; }			// SOUTHEAST
-		if ( t.w && t.w.s ) { t.sw = t.w.s; t.w.s.ne = t; }			// SOUTHWEST
-		if ( t.w && t.w.n ) { t.nw = t.w.n; t.w.n.se = t; }			// NORTHWEST
-	}
+        if ( t.e && t.e.n ) { t.ne = t.e.n; t.e.n.sw = t; }         // NORTHEAST
+        if ( t.e && t.e.s ) { t.se = t.e.s; t.e.s.nw = t; }         // SOUTHEAST
+        if ( t.w && t.w.s ) { t.sw = t.w.s; t.w.s.ne = t; }         // SOUTHWEST
+        if ( t.w && t.w.n ) { t.nw = t.w.n; t.w.n.se = t; }         // NORTHWEST
+    }
 }
 {
     GridOfTiles.prototype.createFirstRow = function(n, leftTile)
@@ -459,26 +459,26 @@ function GridOfTiles(numX=7, numY=5)
         const it = this.createIterator();
         for ( const t of it )
             t.placeCoin();
-        
+
         return this;
     };
 
     GridOfTiles.prototype.jumbleCoins = function()
     {
-		const it = this.createIterator();
-		for ( const t of it )
-		{
-			t.originalCoins = t.coins;
-			t.jumbleCoin();
-		}
+        const it = this.createIterator();
+        for ( const t of it )
+        {
+            t.originalCoins = t.coins;
+            t.jumbleCoin();
+        }
 
         return this;
     };
 
     GridOfTiles.prototype.createHTML = function()
     {
-		addStyle();
-		
+        addStyle();
+
         // create a grid container; all direct children will become grid items
         const eleWrapper = document.createElement("div");
         // set attributes; "grid-gap" becomes camelCase "gridGrap"
@@ -500,7 +500,7 @@ function GridOfTiles(numX=7, numY=5)
         }
 
         document.body.appendChild(eleWrapper);
-        
+
         return this;
     };
 
@@ -509,10 +509,10 @@ function GridOfTiles(numX=7, numY=5)
         const it = this.createIterator();
         for ( const t of it )
             t.setGraphic();
-        
+
         return this;
     };
-    
+
     GridOfTiles.prototype.createIterator = function*()
     {
         // loop y outside x to generate grid elements in correct order
