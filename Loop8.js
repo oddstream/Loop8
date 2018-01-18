@@ -1,13 +1,16 @@
 /*jshint esversion:6, unused:true, undef:true */
+// @ts-check
 
 "use strict";
 
 const DEBUGGING = 0;
 
 const Q = 100;
+const strQ = Q.toString();
 const Q50 = Math.floor(Q/2);
-const Q10 = Math.floor(Q/10);
+const strQ50 = Q50.toString();
 const Q5 = Math.floor(Q/20);
+const strQ5 = Q5.toString(); 
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
@@ -21,14 +24,14 @@ const WEST      = 0b01000000;
 const NORTHWEST = 0b10000000;
 
 const bit2point = [
-        { bit: NORTH,       x: Q50, y:0    },
-        { bit: NORTHEAST,   x: Q,   y:0    },
-        { bit: EAST,        x: Q,   y:Q50  },
-        { bit: SOUTHEAST,   x: Q,   y:Q    },
-        { bit: SOUTH,       x: Q50, y:Q    },
-        { bit: SOUTHWEST,   x: 0,   y:Q    },
-        { bit: WEST,        x: 0,   y:Q50  },
-        { bit: NORTHWEST,   x: 0,   y:0    }
+        { bit: NORTH,       x: strQ50, y:"0"    },
+        { bit: NORTHEAST,   x: strQ,   y:"0"    },
+        { bit: EAST,        x: strQ,   y:strQ50  },
+        { bit: SOUTHEAST,   x: strQ,   y:strQ    },
+        { bit: SOUTH,       x: strQ50, y:strQ    },
+        { bit: SOUTHWEST,   x: "0",    y:strQ    },
+        { bit: WEST,        x: "0",    y:strQ50  },
+        { bit: NORTHWEST,   x: "0",    y:"0"    }
     ];
 
 const PLACE_COIN_CHANCE = 0.5;
@@ -52,15 +55,8 @@ function main()
 function addStyle()
 {
     const css = `svg:hover { stroke: ${HIGHLIGHT_COLOR}; }`;
-    const style = document.createElement('style');
-    if (style.styleSheet)
-    {
-        style.styleSheet.cssText = css;
-    }
-    else
-    {
-        style.appendChild(document.createTextNode(css));
-    }
+    const style = document.createElement('style');  // magically creates an object with HTMLStyleElement interface
+    style.appendChild(document.createTextNode(css));
     document.getElementsByTagName('head')[0].appendChild(style);
 }
 
@@ -96,7 +92,7 @@ class Tile
 
     getSinglePoint()
     {
-        const b2p = bit2point.find( ele => this.coins & ele.bit );
+        const b2p = bit2point.find( ele => Boolean(this.coins & ele.bit) );
         if ( b2p )
             return { x:b2p.x, y:b2p.y };
         throw new Error(`Bit ${this.coins} not found`);
@@ -349,10 +345,10 @@ class Tile
             return;
 
         const svg = document.createElementNS(SVG_NAMESPACE, 'svg');
-        svg.setAttributeNS(null, 'width', Q);
-        svg.setAttributeNS(null, 'height', Q);
+        svg.setAttributeNS(null, 'width', strQ);
+        svg.setAttributeNS(null, 'height', strQ);
         svg.setAttributeNS(null, 'stroke', INPROGRESS_COLOR);
-        svg.setAttributeNS(null, 'stroke-width', 1);
+        svg.setAttributeNS(null, 'stroke-width', '1');
         svg.setAttributeNS(null, 'fill', 'none');
         this.div.addEventListener("click", this);
 
@@ -362,20 +358,20 @@ class Tile
         const numBits = this.bitCount();
         if ( 1 == numBits )
         {
-            let ele = document.createElementNS(SVG_NAMESPACE, 'line');
+            const eleLine = document.createElementNS(SVG_NAMESPACE, 'line');
                 const pt = this.getSinglePoint();
-                ele.setAttributeNS(null, 'x1', pt.x);
-                ele.setAttributeNS(null, 'y1', pt.y);
-                ele.setAttributeNS(null, 'x2', Q50);
-                ele.setAttributeNS(null, 'y2', Q50);
-            g.appendChild(ele);
+                eleLine.setAttributeNS(null, 'x1', pt.x);
+                eleLine.setAttributeNS(null, 'y1', pt.y);
+                eleLine.setAttributeNS(null, 'x2', strQ50);
+                eleLine.setAttributeNS(null, 'y2', strQ50);
+            g.appendChild(eleLine);
 
-            ele = document.createElementNS(SVG_NAMESPACE, 'circle');
-                ele.setAttributeNS(null, 'r', Q5);
-                ele.setAttributeNS(null, 'cx', Q50);
-                ele.setAttributeNS(null, 'cy', Q50);
-                ele.setAttributeNS(null, 'fill', HIGHLIGHT_COLOR);
-            g.appendChild(ele);
+            const eleCircle = document.createElementNS(SVG_NAMESPACE, 'circle');
+                eleCircle.setAttributeNS(null, 'r', strQ5);
+                eleCircle.setAttributeNS(null, 'cx', strQ50);
+                eleCircle.setAttributeNS(null, 'cy', strQ50);
+                eleCircle.setAttributeNS(null, 'fill', HIGHLIGHT_COLOR);
+            g.appendChild(eleCircle);
         }
         else
         {
