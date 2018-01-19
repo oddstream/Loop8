@@ -13,6 +13,8 @@ It's implemented using a lattice of square-shaped linked nodes, which are called
 So much more fun than using a two dimensional array.
 
 Each tile is rendered inside its own HTML DIV element. The DIV element is a container for an SVG element, which contains an SVG group (G) and then SVG drawing element(s).
+When the DIV receives a mouse click, the SVG group in the DIV is rotated 45&deg; in 5&deg; increments, timed against window.requestAnimationFrame(). Then the SVG is replaced with
+a new copy.
 
 The loops are implemented not as loops, but by the notion of placing 'coins' at each edge of a tile that contains a link to it's neighbour. Each tile contains zero to
 eight coins. The coins are referred to by compass points. The coins are reciprocal, so, for example, if a tile has a 'north' coin, then it's neighbour to the north
@@ -23,4 +25,3 @@ The puzzle is complete when, for each tile, every coin has a matching reciprocal
 The coins for each tile are held as bits in a number. Tile rotation clockwise is done by rotating the bits in the number to the right.
 
 The game is implemented in two files, a minimal wrapper .html file and a script .js file. All the exciting HTML is created on the fly by the script.
-
