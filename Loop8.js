@@ -1,9 +1,11 @@
-/*jshint esversion:6, unused:true, undef:true */
 // @ts-check
+// TODO check for memory leaks
+// TODO find out why SVG onend event doesn't work
+// TODO graphics gap at some junctions
 
 "use strict";
 
-const DEBUGGING = 0;
+const DEBUGGING = false;
 
 const Q = 100;
 const strQ = Q.toString();
@@ -23,34 +25,27 @@ const SOUTHWEST = 0b00100000;
 const WEST      = 0b01000000;
 const NORTHWEST = 0b10000000;
 
-const bit2point = [
-        { bit: NORTH,       x: strQ50, y:"0"    },
-        { bit: NORTHEAST,   x: strQ,   y:"0"    },
-        { bit: EAST,        x: strQ,   y:strQ50  },
-        { bit: SOUTHEAST,   x: strQ,   y:strQ    },
-        { bit: SOUTH,       x: strQ50, y:strQ    },
-        { bit: SOUTHWEST,   x: "0",    y:strQ    },
-        { bit: WEST,        x: "0",    y:strQ50  },
-        { bit: NORTHWEST,   x: "0",    y:"0"    }
-    ];
+const linkData = [
+    { bit: NORTH,       opp: SOUTH,     link:'n',    x: strQ50, y: "0"     },
+    { bit: NORTHEAST,   opp: SOUTHWEST, link:'ne',   x: strQ,   y: "0"     },
+    { bit: EAST,        opp: WEST,      link:'e',    x: strQ,   y: strQ50  },
+    { bit: SOUTHEAST,   opp: NORTHWEST, link:'se',   x: strQ,   y: strQ    },
+    { bit: SOUTH,       opp: NORTH,     link:'s',    x: strQ50, y: strQ    },
+    { bit: SOUTHWEST,   opp: NORTHEAST, link:'sw',   x: "0",    y: strQ    },
+    { bit: WEST,        opp: EAST,      link:'w',    x: "0",    y: strQ50  },
+    { bit: NORTHWEST,   opp: SOUTHEAST, link:'nw',   x: "0",    y: "0"     }
+];
 
-const PLACE_COIN_CHANCE = 0.5;
-const JUMBLE_COIN_CHANCE = 0.8;
+const PLACE_COIN_CHANCE = 0.4;
+const JUMBLE_COIN_CHANCE = 0.5;
 
 // https://en.wikipedia.org/wiki/Web_colors
-const BACKGROUND_COLOR = 'powderblue';
-const INPROGRESS_COLOR = 'navy';
+const BACKGROUND_COLOR = 'lightblue';
+const INPROGRESS_COLOR = 'darkblue';
 const COMPLETED_COLOR = 'black';
 const HIGHLIGHT_COLOR = 'darkorange';
 
-function main()
-{
-    const got = new GridOfTiles(
-        Math.max(Math.floor(window.innerWidth / Q), 3),
-        Math.max(Math.floor(window.innerHeight / Q), 3)
-    );
-    got.createHTML().placeCoins().jumbleCoins().setGraphics();
-}
+let gameState = null;
 
 function addStyle()
 {
@@ -62,26 +57,48 @@ function addStyle()
 
 function removeStyle()
 {
-    const ele = document.querySelector("head>style");
-    if ( ele )
+    let ele = null;
+    while ( ele = document.querySelector("head>style") )
         ele.parentNode.removeChild(ele);
+}
+
+class GameState
+{
+    constructor()
+    {
+        this._gridsSolved = this._getLocalStorageNumber("gridsSolved", 0);
+        this._jumbleCoinChance = this._gridsSolved / 200;
+        this._jumbleCoinChance = Math.min(this._jumbleCoinChance, 0.5);
+        this._jumbleCoinChance = Math.max(this._jumbleCoinChance, 0.05);
+    }
+
+    gridSolved()
+    {
+        this._gridsSolved += 1;
+        window.localStorage.setItem("gridsSolved", this._gridsSolved.toString());
+    }
+
+    _getLocalStorageNumber(key, defaultValue)
+    {
+        const val = window.localStorage.getItem(key);
+        if ( null === val )
+            return defaultValue;
+        else
+            return parseInt(val);
+    }
+    
+    get jumbleCoinChance()
+    {
+        return this._jumbleCoinChance;
+    }
 }
 
 class Tile
 {
     constructor()
     {
-        this.n = null;
-        this.ne = null;
-        this.e = null;
-        this.se = null;
-        this.s = null;
-        this.sw = null;
-        this.w = null;
-        this.nw = null;
-
+        this.n = this.ne = this.e = this.se = this.s = this.sw = this.w = this.nw = null;
         this.coins = this.originalCoins = 0;
-
         this.div = null;
     }
 
@@ -92,21 +109,21 @@ class Tile
 
     getSinglePoint()
     {
-        const b2p = bit2point.find( ele => Boolean(this.coins & ele.bit) );
+        const b2p = linkData.find( ele => Boolean(this.coins & ele.bit) );
         if ( b2p )
             return { x:b2p.x, y:b2p.y };
-        throw new Error(`Bit ${this.coins} not found`);
+        throw new RangeError(`Bit ${this.coins} not found`);
     }
 
-    spinSVG(degrees=45)
-    {
+    spinSVG(clockwise=true, degrees=45)
+    {   // this == Tile
         const that = this;
         let angle = 5;
 
         const g = this.div.querySelector("g");
         const tilt = function()
-        {
-            g.setAttributeNS(null, 'transform', `rotate(${angle} ${Q50},${Q50})`);
+        {   // this == null
+            g.setAttributeNS(null, 'transform', `rotate(${clockwise?'':'-'}${angle} ${Q50},${Q50})`);
             angle += 5;
             if ( angle < degrees )
                 window.requestAnimationFrame(tilt);
@@ -116,97 +133,55 @@ class Tile
         window.requestAnimationFrame(tilt);
     }
 
-    unspinSVG(degrees=45)
+    shiftBits(num = 1)
     {
-        const that = this;
-        let angle = 5;
-
-        const g = this.div.querySelector("g");
-        const tilt = function()
+        while ( num-- )
         {
-            g.setAttributeNS(null, 'transform', `rotate(-${angle} ${Q50},${Q50})`);
-            angle += 5;
-            if ( angle < degrees )
-                window.requestAnimationFrame(tilt);
+            if ( this.coins & 0b10000000 )
+                this.coins = ((this.coins << 1) & 0b11111111) | 0b00000001;
             else
-                window.requestAnimationFrame(that.setGraphic.bind(that));
-        };
-        window.requestAnimationFrame(tilt);
+                this.coins = (this.coins << 1) & 0b11111111;
+
+        }
     }
 
-    shiftBits()
+    unshiftBits(num = 1)
     {
-        if ( this.coins & 0b10000000 )
-            this.coins = ((this.coins << 1) & 0b11111111) | 0b00000001;
-        else
-            this.coins = (this.coins << 1) & 0b11111111;
-    }
-
-    unshiftBits()
-    {
-        if ( this.coins & 0b00000001 )
-            this.coins = (this.coins >> 1) | 0b10000000;
-        else
-            this.coins = this.coins >> 1;
+        while ( num-- )
+        {
+            if ( this.coins & 0b00000001 )
+                this.coins = (this.coins >> 1) | 0b10000000;
+            else
+                this.coins = this.coins >> 1;
+        }
     }
 
     rotate()
     {
-        if ( this.coins === 0  )
-            return;
-        this.spinSVG();
+        this.spinSVG(true, 45);
         this.shiftBits();
     }
 
-    unrotate()
+    unRotate()
     {
-        if ( this.coins === 0  )
-            return;
-        this.unspinSVG();
+        this.spinSVG(false, 45);
         this.unshiftBits();
+    }
+
+    unJumble()
+    {
+        this.coins = this.originalCoins;
+        this.setGraphic();
     }
 
     isTileComplete()
     {
-        if (this.coins & NORTH) {
-            if ((this.n === null) || !(this.n.coins & SOUTH)) {
+        for ( let chkLink of linkData.filter(chk => this.coins & chk.bit) )
+        {
+            if ( (this[chkLink.link] === null) )
                 return false;
-            }
-        }
-        if (this.coins & NORTHEAST) {
-            if ((this.ne === null) || !(this.ne.coins & SOUTHWEST)) {
+            if ( !(this[chkLink.link].coins & chkLink.opp) )
                 return false;
-            }
-        }
-        if (this.coins & EAST) {
-            if ((this.e === null) || !(this.e.coins & WEST)) {
-                return false;
-            }
-        }
-        if (this.coins & SOUTHEAST) {
-            if ((this.se === null) || !(this.se.coins & NORTHWEST)) {
-                return false;
-            }
-        }
-        if (this.coins & SOUTH) {
-            if ((this.s === null) || !(this.s.coins & NORTH)) {
-                return false;
-            }
-        }
-        if (this.coins & SOUTHWEST) {
-            if ((this.sw === null) || !(this.sw.coins & NORTHEAST)) {
-                return false;
-            }
-        }
-        if (this.coins & WEST) {
-            if ((this.w === null) || !(this.w.coins & EAST)) {
-                return false;
-            }
-        }
-        if (this.coins & NORTHWEST) {
-            if ((this.nw === null) || !(this.nw.coins & SOUTHEAST)) {
-                return false;
-            }
         }
         return true;
     }
@@ -214,6 +189,7 @@ class Tile
     getRoot()
     {
         let t = this;
+        while ( t.nw ) t = t.nw;
         while ( t.w ) t = t.w;
         while ( t.n ) t = t.n;
         return t;
@@ -243,7 +219,7 @@ class Tile
     {
         if ( this.e )
         {
-            if ( Math.random() > PLACE_COIN_CHANCE )
+            if ( Math.random() < PLACE_COIN_CHANCE )
             {
                 this.coins = this.coins | EAST;
                 this.e.coins = this.e.coins | WEST;
@@ -251,7 +227,7 @@ class Tile
         }
         if ( this.se )
         {
-            if ( Math.random() > PLACE_COIN_CHANCE )
+            if ( Math.random() < PLACE_COIN_CHANCE )
             {
                 this.coins = this.coins | SOUTHEAST;
                 this.se.coins = this.se.coins | NORTHWEST;
@@ -259,7 +235,7 @@ class Tile
         }
         if ( this.s )
         {
-            if ( Math.random() > PLACE_COIN_CHANCE )
+            if ( Math.random() < PLACE_COIN_CHANCE )
             {
                 this.coins = this.coins | SOUTH;
                 this.s.coins = this.s.coins | NORTH;
@@ -267,7 +243,7 @@ class Tile
         }
         if ( this.sw )
         {
-            if ( Math.random() > PLACE_COIN_CHANCE )
+            if ( Math.random() < PLACE_COIN_CHANCE )
             {
                 this.coins = this.coins | SOUTHWEST;
                 this.sw.coins = this.sw.coins | NORTHEAST;
@@ -277,20 +253,24 @@ class Tile
 
     jumbleCoin()
     {
+        function getRandomInt(min, max)
+        {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
         if ( DEBUGGING )
         {
-            if ( Math.random() > 0.95 )
+            if ( Math.random() < 0.05 )
                 this.unshiftBits();
         }
         else
         {
-            if ( Math.random() > JUMBLE_COIN_CHANCE )
+            if ( Math.random() < gameState.jumbleCoinChance )
             {
-                this.unshiftBits();
-            }
-            else if ( Math.random() > JUMBLE_COIN_CHANCE )
-            {
-                this.shiftBits();
+                if ( Math.random() > 0.5 )
+                    this.shiftBits(getRandomInt(0,4));
+                else
+                    this.unshiftBits(getRandomInt(0,4));
             }
         }
     }
@@ -308,17 +288,16 @@ class Tile
             return;
 
         if ( event.altKey )
-        {
-            this.coins = this.originalCoins;
-            this.setGraphic();
-        }
+            this.unJumble();
         else if ( event.shiftKey || event.ctrlKey )
-            this.unrotate();
+            this.unRotate();
         else
             this.rotate();
 
         if ( this.isGridComplete() )
         {
+            gameState.gridSolved();
+
             removeStyle();
             // TODO async/Promise?
             const it = this.createIterator();
@@ -348,7 +327,7 @@ class Tile
         svg.setAttributeNS(null, 'width', strQ);
         svg.setAttributeNS(null, 'height', strQ);
         svg.setAttributeNS(null, 'stroke', INPROGRESS_COLOR);
-        svg.setAttributeNS(null, 'stroke-width', '1');
+        svg.setAttributeNS(null, 'stroke-width', DEBUGGING ? this.bitCount().toString() : '1');
         svg.setAttributeNS(null, 'fill', 'none');
         this.div.addEventListener("click", this);
 
@@ -381,17 +360,25 @@ class Tile
     It draws perfectly good straight lines, too, so no need for separate 'line' element.
 */
             let path = "";
-            for ( let b2p of bit2point )
+            let ldFirst = undefined;
+            for ( let ld of linkData )
             {
-                if ( this.coins & b2p.bit )
+                if ( this.coins & ld.bit )
                 {
                     if ( path.length === 0 )
-                        path = `M${b2p.x},${b2p.y}`;
+                    {
+                        ldFirst = ld;
+                        path = `M${ld.x},${ld.y}`;
+                    }
                     else
-                        path = path.concat(` Q${Q50},${Q50} ${b2p.x},${b2p.y}`);
+                    {
+                        path = path.concat(` Q${Q50},${Q50} ${ld.x},${ld.y}`);
+                    }
                 }
             }
-
+            if ( numBits > 4 )  // close the path for better aesthetics
+                path = path.concat(` Q${Q50},${Q50} ${ldFirst.x},${ldFirst.y}`);
+            
             const ele = document.createElementNS(SVG_NAMESPACE, 'path');
             ele.setAttributeNS(null, 'd', path);
             g.appendChild(ele);
@@ -404,42 +391,44 @@ class Tile
     }
 }
 
-function GridOfTiles(numX=7, numY=5)
+class GridOfTiles
 {
-    this.numX = numX;
-    this.numY = numY;
-    this.grid = this.createFirstRow(numX, null);
-    let row = numY;
-
-    for ( let nextRow=this.grid; row>1; row--, nextRow=nextRow.s )
+    constructor(numX=7, numY=5)
     {
-        let tPrev = null;
-        for ( let t = nextRow; t; t = t.e)
+        this.numX = numX;
+        this.numY = numY;
+        this.grid = this.createFirstRow(numX, null);
+        let row = numY;
+
+        for ( let nextRow=this.grid; row>1; row--, nextRow=nextRow.s )
         {
-            t.s = new Tile();
-            t.s.n = t;
-
-            t.s.w = tPrev;
-            if ( tPrev )
+            let tPrev = null;
+            for ( let t = nextRow; t; t = t.e)
             {
-                tPrev.e = t.s;
-            }
+                t.s = new Tile();
+                t.s.n = t;
 
-            tPrev = t.s;
+                t.s.w = tPrev;
+                if ( tPrev )
+                {
+                    tPrev.e = t.s;
+                }
+
+                tPrev = t.s;
+            }
+        }
+    
+        const it = this.createIterator();
+        for ( const t of it )
+        {
+            if ( t.e && t.e.n ) { t.ne = t.e.n; t.e.n.sw = t; }         // NORTHEAST
+            if ( t.e && t.e.s ) { t.se = t.e.s; t.e.s.nw = t; }         // SOUTHEAST
+            if ( t.w && t.w.s ) { t.sw = t.w.s; t.w.s.ne = t; }         // SOUTHWEST
+            if ( t.w && t.w.n ) { t.nw = t.w.n; t.w.n.se = t; }         // NORTHWEST
         }
     }
 
-    const it = this.createIterator();
-    for ( const t of it )
-    {
-        if ( t.e && t.e.n ) { t.ne = t.e.n; t.e.n.sw = t; }         // NORTHEAST
-        if ( t.e && t.e.s ) { t.se = t.e.s; t.e.s.nw = t; }         // SOUTHEAST
-        if ( t.w && t.w.s ) { t.sw = t.w.s; t.w.s.ne = t; }         // SOUTHWEST
-        if ( t.w && t.w.n ) { t.nw = t.w.n; t.w.n.se = t; }         // NORTHWEST
-    }
-}
-{
-    GridOfTiles.prototype.createFirstRow = function(n, leftTile)
+    createFirstRow(n, leftTile)
     {
         let t = new Tile();
         t.w = leftTile;
@@ -448,30 +437,32 @@ function GridOfTiles(numX=7, numY=5)
             t.e = this.createFirstRow(n-1, t);
         }
         return t;
-    };
+    }
 
-    GridOfTiles.prototype.placeCoins = function()
+    placeCoins()
     {
         const it = this.createIterator();
         for ( const t of it )
             t.placeCoin();
 
         return this;
-    };
+    }
 
-    GridOfTiles.prototype.jumbleCoins = function()
+    jumbleCoins()
     {
-        const it = this.createIterator();
-        for ( const t of it )
+        while ( this.grid.isGridComplete() )
         {
-            t.originalCoins = t.coins;
-            t.jumbleCoin();
+            const it = this.createIterator();
+            for ( const t of it )
+            {
+                t.originalCoins = t.coins;
+                t.jumbleCoin();
+            }
         }
-
         return this;
-    };
+    }
 
-    GridOfTiles.prototype.createHTML = function()
+    createHTML()
     {
         addStyle();
 
@@ -479,8 +470,11 @@ function GridOfTiles(numX=7, numY=5)
         const eleWrapper = document.createElement("div");
         // set attributes; "grid-gap" becomes camelCase "gridGrap"
         eleWrapper.style.display = "grid";
-        eleWrapper.style.gridGap = "0px 0px";   // auto-sets .gridRowGap and .gridColumnGap
+        // @ts-ignore: Property 'gridGap' does not exist on type 'CSSStyleDeclaration'
+        eleWrapper.style.gridGap = "0px 0px";   // auto-sets .gridRowGap="0px" and .gridColumnGap="0px"
+        // @ts-ignore: Property 'gridTemplateRows' does not exist on type 'CSSStyleDeclaration'
         eleWrapper.style.gridTemplateRows = `${Q}px `.repeat(this.numY);        // can't use SVG repeat(5,100px)
+        // @ts-ignore: Property 'gridTemplateColumns' does not exist on type 'CSSStyleDeclaration'
         eleWrapper.style.gridTemplateColumns = `${Q}px `.repeat(this.numX);     // can't use SVG repeat(7,100px)
         eleWrapper.style.backgroundColor = BACKGROUND_COLOR;
         eleWrapper.style.border = `1px solid ${INPROGRESS_COLOR}`;
@@ -498,18 +492,18 @@ function GridOfTiles(numX=7, numY=5)
         document.body.appendChild(eleWrapper);
 
         return this;
-    };
+    }
 
-    GridOfTiles.prototype.setGraphics = function()
+    setGraphics()
     {
         const it = this.createIterator();
         for ( const t of it )
             t.setGraphic();
 
         return this;
-    };
+    }
 
-    GridOfTiles.prototype.createIterator = function*()
+    *createIterator()
     {
         // loop y outside x to generate grid elements in correct order
         for ( let y=this.grid; y; y=y.s )
@@ -519,7 +513,18 @@ function GridOfTiles(numX=7, numY=5)
                 yield x;
             }
         }
-    };
+    }
+}
+
+function main()
+{
+    gameState = new GameState();
+
+    const got = new GridOfTiles(
+        Math.max(Math.floor(window.innerWidth / Q), 3),
+        Math.max(Math.floor(window.innerHeight / Q), 3)
+    );
+    got.createHTML().placeCoins().jumbleCoins().setGraphics();
 }
 
 main();
