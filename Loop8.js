@@ -5,12 +5,14 @@
 
 "use strict";
 
-const DEBUGGING = false;
+const DEBUGGING = true;
 
 const Q = 100;
 const strQ = Q.toString();
 const Q50 = Math.floor(Q/2);
 const strQ50 = Q50.toString();
+const Q25 = Math.floor(Q/4);
+const strQ25 = Q25.toString(); 
 const Q5 = Math.floor(Q/20);
 const strQ5 = Q5.toString(); 
 
@@ -37,7 +39,6 @@ const linkData = [
 ];
 
 const PLACE_COIN_CHANCE = 0.4;
-const JUMBLE_COIN_CHANCE = 0.5;
 
 // https://en.wikipedia.org/wiki/Web_colors
 const BACKGROUND_COLOR = 'lightblue';
@@ -66,7 +67,7 @@ class GameState
 {
     constructor()
     {
-        this._gridsSolved = this._getLocalStorageNumber("gridsSolved", 0);
+        this._gridsSolved = this._getLocalStorageInt("gridsSolved", 0);
         this._jumbleCoinChance = this._gridsSolved / 200;
         this._jumbleCoinChance = Math.min(this._jumbleCoinChance, 0.5);
         this._jumbleCoinChance = Math.max(this._jumbleCoinChance, 0.05);
@@ -78,15 +79,20 @@ class GameState
         window.localStorage.setItem("gridsSolved", this._gridsSolved.toString());
     }
 
-    _getLocalStorageNumber(key, defaultValue)
+    _getLocalStorageInt(key, defaultValue)
     {
         const val = window.localStorage.getItem(key);
-        if ( null === val )
+        if ( null === val || /[0-9]+/.test(val) == false )
             return defaultValue;
-        else
-            return parseInt(val);
+        const num = parseInt(val);
+        return isNaN(num) ? defaultValue : num;
     }
     
+    get level()
+    {
+        return (this._gridsSolved+1).toString();
+    }
+
     get jumbleCoinChance()
     {
         return this._jumbleCoinChance;
@@ -285,7 +291,10 @@ class Tile
         }
 
         if ( this.isGridComplete() )
+        {
+            window.location.reload(false);
             return;
+        }
 
         if ( event.altKey )
             this.unJumble();
@@ -299,8 +308,13 @@ class Tile
             gameState.gridSolved();
 
             removeStyle();
+            let it = this.createIterator();
+            for ( const t of it )
+                if ( 0 === t.coins && t.div.innerText )
+                    t.div.innerText = "";       // remove the level display
+
             // TODO async/Promise?
-            const it = this.createIterator();
+            it = this.createIterator();
             window.setTimeout( () => {
                 for ( const t of it )
                     t.strokeItBlack(COMPLETED_COLOR);
@@ -376,7 +390,7 @@ class Tile
                     }
                 }
             }
-            if ( numBits > 4 )  // close the path for better aesthetics
+            if ( numBits > 3 )  // close the path for better aesthetics
                 path = path.concat(` Q${Q50},${Q50} ${ldFirst.x},${ldFirst.y}`);
             
             const ele = document.createElementNS(SVG_NAMESPACE, 'path');
@@ -496,9 +510,26 @@ class GridOfTiles
 
     setGraphics()
     {
-        const it = this.createIterator();
+        let it = this.createIterator();
         for ( const t of it )
             t.setGraphic();
+
+        let lastEmptyTile = null;
+        it = this.createIterator();
+        for ( const t of it )
+            if ( 0 === t.coins )
+                lastEmptyTile = t;
+
+        if ( lastEmptyTile )
+        {
+            lastEmptyTile.div.style.cssText = `display: block; 
+                text-align: center; 
+                font-size: ${gameState.gridsSolved>999?strQ25:strQ50}px;
+                -webkit-text-fill-color: ${BACKGROUND_COLOR};
+                -webkit-text-stroke-width: 1px;
+                -webkit-text-stroke-color: ${INPROGRESS_COLOR}`;
+            lastEmptyTile.div.appendChild(document.createTextNode(gameState.level));
+        }
 
         return this;
     }
