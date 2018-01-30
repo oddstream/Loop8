@@ -5,7 +5,7 @@
 
 "use strict";
 
-const DEBUGGING = true;
+const DEBUGGING = false;
 
 const Q = 100;
 const strQ = Q.toString();
