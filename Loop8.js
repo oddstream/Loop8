@@ -3,7 +3,7 @@
 // TODO find out why SVG onend event doesn't work
 // TODO graphics gap at some junctions
 
-"use strict";
+'use strict';
 
 const DEBUGGING = false;
 
@@ -28,14 +28,14 @@ const WEST      = 0b01000000;
 const NORTHWEST = 0b10000000;
 
 const linkData = [
-    { bit: NORTH,       opp: SOUTH,     link:'n',    x: strQ50, y: "0"     },
-    { bit: NORTHEAST,   opp: SOUTHWEST, link:'ne',   x: strQ,   y: "0"     },
+    { bit: NORTH,       opp: SOUTH,     link:'n',    x: strQ50, y: '0'     },
+    { bit: NORTHEAST,   opp: SOUTHWEST, link:'ne',   x: strQ,   y: '0'     },
     { bit: EAST,        opp: WEST,      link:'e',    x: strQ,   y: strQ50  },
     { bit: SOUTHEAST,   opp: NORTHWEST, link:'se',   x: strQ,   y: strQ    },
     { bit: SOUTH,       opp: NORTH,     link:'s',    x: strQ50, y: strQ    },
-    { bit: SOUTHWEST,   opp: NORTHEAST, link:'sw',   x: "0",    y: strQ    },
-    { bit: WEST,        opp: EAST,      link:'w',    x: "0",    y: strQ50  },
-    { bit: NORTHWEST,   opp: SOUTHEAST, link:'nw',   x: "0",    y: "0"     }
+    { bit: SOUTHWEST,   opp: NORTHEAST, link:'sw',   x: '0',    y: strQ    },
+    { bit: WEST,        opp: EAST,      link:'w',    x: '0',    y: strQ50  },
+    { bit: NORTHWEST,   opp: SOUTHEAST, link:'nw',   x: '0',    y: '0'     }
 ];
 
 const PLACE_COIN_CHANCE = 0.4;
@@ -59,7 +59,7 @@ function addStyle()
 function removeStyle()
 {
     let ele = null;
-    while ( ele = document.querySelector("head>style") )
+    while ( ele = document.querySelector('head>style') )
         ele.parentNode.removeChild(ele);
 }
 
@@ -67,7 +67,7 @@ class GameState
 {
     constructor()
     {
-        this._gridsSolved = this._getLocalStorageInt("gridsSolved", 0);
+        this._gridsSolved = this._getLocalStorageInt('gridsSolved', 0);
         this._jumbleCoinChance = this._gridsSolved / 200;
         this._jumbleCoinChance = Math.min(this._jumbleCoinChance, 0.5);
         this._jumbleCoinChance = Math.max(this._jumbleCoinChance, 0.05);
@@ -76,16 +76,18 @@ class GameState
     gridSolved()
     {
         this._gridsSolved += 1;
-        window.localStorage.setItem("gridsSolved", this._gridsSolved.toString());
+        window.localStorage.setItem('gridsSolved', this._gridsSolved.toString());
     }
 
     _getLocalStorageInt(key, defaultValue)
     {
         const val = window.localStorage.getItem(key);
-        if ( null === val || /[0-9]+/.test(val) == false )
+        const num = parseInt(val);  // parseInt(null) returns NaN
+        if ( isNaN(num) )
             return defaultValue;
-        const num = parseInt(val);
-        return isNaN(num) ? defaultValue : num;
+        if ( num < 0 )
+            return defaultValue;
+        return num;
     }
     
     get level()
@@ -108,9 +110,15 @@ class Tile
         this.div = null;
     }
 
-    bitCount()
+    hammingWeight()
     {
-        return this.coins.toString(2).split('1').length-1;
+//        return this.coins.toString(2).split('1').length-1;
+//        return this.coins.toString(2).match(/1/g).length;
+        // https://stackoverflow.com/questions/109023/how-to-count-the-number-of-set-bits-in-a-32-bit-integer
+        let v = this.coins;
+        v = v - ((v >> 1) & 0x55555555);                // put count of each 2 bits into those 2 bits
+        v = (v & 0x33333333) + ((v >> 2) & 0x33333333); // put count of each 4 bits into those 4 bits  
+        return ((v + (v >> 4) & 0xF0F0F0F) * 0x1010101) >> 24;
     }
 
     getSinglePoint()
@@ -126,7 +134,7 @@ class Tile
         const that = this;
         let angle = 5;
 
-        const g = this.div.querySelector("g");
+        const g = this.div.querySelector('g');
         const tilt = function()
         {   // this == null
             g.setAttributeNS(null, 'transform', `rotate(${clockwise?'':'-'}${angle} ${Q50},${Q50})`);
@@ -184,7 +192,7 @@ class Tile
     {
         for ( let chkLink of linkData.filter(chk => this.coins & chk.bit) )
         {
-            if ( (this[chkLink.link] === null) )
+            if ( this[chkLink.link] === null )
                 return false;
             if ( !(this[chkLink.link].coins & chkLink.opp) )
                 return false;
@@ -214,8 +222,7 @@ class Tile
 
     isGridComplete()
     {
-        const it = this.createIterator();
-        for ( const t of it )
+        for ( const t of this.createIterator() )
             if ( !t.isTileComplete() )
                 return false;
         return true;
@@ -263,13 +270,14 @@ class Tile
         {
             return Math.floor(Math.random() * (max - min + 1)) + min;
         }
-
+/*
         if ( DEBUGGING )
         {
             if ( Math.random() < 0.05 )
                 this.unshiftBits();
         }
         else
+*/
         {
             if ( Math.random() < gameState.jumbleCoinChance )
             {
@@ -284,7 +292,7 @@ class Tile
     // Tile implements the handleEvent interface
     handleEvent(event)
     {
-        if ( event.type != "click" )
+        if ( event.type != 'click' )
         {
             console.log(event);
             return;
@@ -308,15 +316,13 @@ class Tile
             gameState.gridSolved();
 
             removeStyle();
-            let it = this.createIterator();
-            for ( const t of it )
+            for ( const t of this.createIterator() )
                 if ( 0 === t.coins && t.div.innerText )
-                    t.div.innerText = "";       // remove the level display
+                    t.div.innerText = '';       // remove the level display
 
             // TODO async/Promise?
-            it = this.createIterator();
             window.setTimeout( () => {
-                for ( const t of it )
+                for ( const t of this.createIterator() )
                     t.strokeItBlack(COMPLETED_COLOR);
             }, 500);
         }
@@ -324,10 +330,10 @@ class Tile
 
     strokeItBlack(strokeColor=COMPLETED_COLOR)
     {
-        let ele = this.div.querySelector("circle");
+        let ele = this.div.querySelector('circle');
         if ( ele )
             ele.setAttributeNS(null, 'fill', strokeColor);
-        ele = this.div.querySelector("svg");
+        ele = this.div.querySelector('svg');
         if ( ele )
             ele.setAttributeNS(null, 'stroke', strokeColor);
     }
@@ -337,19 +343,20 @@ class Tile
         if ( 0 === this.coins )
             return;
 
+        const bitCount = this.hammingWeight();
+
         const svg = document.createElementNS(SVG_NAMESPACE, 'svg');
         svg.setAttributeNS(null, 'width', strQ);
         svg.setAttributeNS(null, 'height', strQ);
         svg.setAttributeNS(null, 'stroke', INPROGRESS_COLOR);
-        svg.setAttributeNS(null, 'stroke-width', DEBUGGING ? this.bitCount().toString() : '1');
+        svg.setAttributeNS(null, 'stroke-width', DEBUGGING ? this.coins == this.originalCoins ? '1' : '4' : '1');
         svg.setAttributeNS(null, 'fill', 'none');
-        this.div.addEventListener("click", this);
+        this.div.addEventListener('click', this);
 
         const g = document.createElementNS(SVG_NAMESPACE, 'g');
         svg.appendChild(g);
 
-        const numBits = this.bitCount();
-        if ( 1 == numBits )
+        if ( 1 == bitCount )
         {
             const eleLine = document.createElementNS(SVG_NAMESPACE, 'line');
                 const pt = this.getSinglePoint();
@@ -373,7 +380,7 @@ class Tile
     Two co-ordinates follow the ‘Q’; the single control point (50,50) and the final point we’re drawing to (0,0).
     It draws perfectly good straight lines, too, so no need for separate 'line' element.
 */
-            let path = "";
+            let path = '';
             let ldFirst = undefined;
             for ( let ld of linkData )
             {
@@ -390,7 +397,7 @@ class Tile
                     }
                 }
             }
-            if ( numBits > 3 )  // close the path for better aesthetics
+            if ( bitCount > 3 )  // close the path for better aesthetics
                 path = path.concat(` Q${Q50},${Q50} ${ldFirst.x},${ldFirst.y}`);
             
             const ele = document.createElementNS(SVG_NAMESPACE, 'path');
@@ -432,8 +439,7 @@ class GridOfTiles
             }
         }
     
-        const it = this.createIterator();
-        for ( const t of it )
+        for ( const t of this.createIterator() )
         {
             if ( t.e && t.e.n ) { t.ne = t.e.n; t.e.n.sw = t; }         // NORTHEAST
             if ( t.e && t.e.s ) { t.se = t.e.s; t.e.s.nw = t; }         // SOUTHEAST
@@ -455,8 +461,7 @@ class GridOfTiles
 
     placeCoins()
     {
-        const it = this.createIterator();
-        for ( const t of it )
+        for ( const t of this.createIterator() )
             t.placeCoin();
 
         return this;
@@ -466,8 +471,7 @@ class GridOfTiles
     {
         while ( this.grid.isGridComplete() )
         {
-            const it = this.createIterator();
-            for ( const t of it )
+            for ( const t of this.createIterator() )
             {
                 t.originalCoins = t.coins;
                 t.jumbleCoin();
@@ -481,11 +485,11 @@ class GridOfTiles
         addStyle();
 
         // create a grid container; all direct children will become grid items
-        const eleWrapper = document.createElement("div");
+        const eleWrapper = document.createElement('div');
         // set attributes; "grid-gap" becomes camelCase "gridGrap"
-        eleWrapper.style.display = "grid";
+        eleWrapper.style.display = 'grid';
         // @ts-ignore: Property 'gridGap' does not exist on type 'CSSStyleDeclaration'
-        eleWrapper.style.gridGap = "0px 0px";   // auto-sets .gridRowGap="0px" and .gridColumnGap="0px"
+        eleWrapper.style.gridGap = '0px 0px';   // auto-sets .gridRowGap="0px" and .gridColumnGap="0px"
         // @ts-ignore: Property 'gridTemplateRows' does not exist on type 'CSSStyleDeclaration'
         eleWrapper.style.gridTemplateRows = `${Q}px `.repeat(this.numY);        // can't use SVG repeat(5,100px)
         // @ts-ignore: Property 'gridTemplateColumns' does not exist on type 'CSSStyleDeclaration'
@@ -495,11 +499,10 @@ class GridOfTiles
         eleWrapper.style.width = `${Q * this.numX}px`;
         eleWrapper.style.height = `${Q * this.numY}px`;
 
-        const it = this.createIterator();
-        for ( const t of it )
+        for ( const t of this.createIterator() )
         {
             // n.b. the iterator must generate the rows across for the HTML grid to work
-            t.div = document.createElement("div");
+            t.div = document.createElement('div');
             eleWrapper.appendChild(t.div);
         }
 
@@ -510,13 +513,11 @@ class GridOfTiles
 
     setGraphics()
     {
-        let it = this.createIterator();
-        for ( const t of it )
+        for ( const t of this.createIterator() )
             t.setGraphic();
 
         let lastEmptyTile = null;
-        it = this.createIterator();
-        for ( const t of it )
+        for ( const t of this.createIterator() )
             if ( 0 === t.coins )
                 lastEmptyTile = t;
 
@@ -524,7 +525,7 @@ class GridOfTiles
         {
             lastEmptyTile.div.style.cssText = `display: block; 
                 text-align: center; 
-                font-size: ${gameState.gridsSolved>999?strQ25:strQ50}px;
+                font-size: ${gameState._gridsSolved>998?strQ25:strQ50}px;
                 -webkit-text-fill-color: ${BACKGROUND_COLOR};
                 -webkit-text-stroke-width: 1px;
                 -webkit-text-stroke-color: ${INPROGRESS_COLOR}`;
