@@ -2,10 +2,12 @@
 // TODO check for memory leaks
 // TODO find out why SVG onend event doesn't work
 // TODO graphics gap at some junctions
+// TODO the level display sometimes highlights, no idea why
+// TODO T not working in SVG path after Q
 
 'use strict';
 
-const DEBUGGING = false;
+const DEBUGGING = true;
 
 const Q = 100;
 const strQ = Q.toString();
@@ -38,7 +40,7 @@ const linkData = [
     { bit: NORTHWEST,   opp: SOUTHEAST, link:'nw',   x: '0',    y: '0'     }
 ];
 
-const PLACE_COIN_CHANCE = 0.4;
+const PLACE_COIN_CHANCE = 0.33;
 
 // https://en.wikipedia.org/wiki/Web_colors
 const BACKGROUND_COLOR = 'lightblue';
@@ -47,9 +49,10 @@ const COMPLETED_COLOR = 'black';
 const HIGHLIGHT_COLOR = 'darkorange';
 
 let gameState = null;
+let globals = null;
 
 function addStyle()
-{
+{   // this == undefined
     const css = `svg:hover { stroke: ${HIGHLIGHT_COLOR}; }`;
     const style = document.createElement('style');  // magically creates an object with HTMLStyleElement interface
     style.appendChild(document.createTextNode(css));
@@ -57,7 +60,7 @@ function addStyle()
 }
 
 function removeStyle()
-{
+{   // this == undefined
     let ele = null;
     while ( ele = document.querySelector('head>style') )
         ele.parentNode.removeChild(ele);
@@ -66,7 +69,7 @@ function removeStyle()
 class GameState
 {
     constructor()
-    {
+    {   // this == GameState
         this._gridsSolved = this._getLocalStorageInt('gridsSolved', 0);
         this._jumbleCoinChance = this._gridsSolved / 200;
         this._jumbleCoinChance = Math.min(this._jumbleCoinChance, 0.5);
@@ -80,7 +83,7 @@ class GameState
     }
 
     _getLocalStorageInt(key, defaultValue)
-    {
+    {   // this == GameState
         const val = window.localStorage.getItem(key);
         const num = parseInt(val);  // parseInt(null) returns NaN
         if ( isNaN(num) )
@@ -101,8 +104,20 @@ class GameState
     }
 }
 
-class Tile
+class Globals
 {
+    constructor()
+    {
+//        this.eleClick = new HTMLMediaElement(); // Javascript cast
+        this.eleClick = document.querySelector('audio#click');
+
+//        this.eleShutter = new HTMLMediaElement(); // Javascript cast
+        this.eleShutter = document.querySelector('audio#shutter');
+    }
+}
+
+class Tile
+{   // all methods will have this == Tile
     constructor()
     {
         this.n = this.ne = this.e = this.se = this.s = this.sw = this.w = this.nw = null;
@@ -121,16 +136,8 @@ class Tile
         return ((v + (v >> 4) & 0xF0F0F0F) * 0x1010101) >> 24;
     }
 
-    getSinglePoint()
-    {
-        const b2p = linkData.find( ele => Boolean(this.coins & ele.bit) );
-        if ( b2p )
-            return { x:b2p.x, y:b2p.y };
-        throw new RangeError(`Bit ${this.coins} not found`);
-    }
-
     spinSVG(clockwise=true, degrees=45)
-    {   // this == Tile
+    {
         const that = this;
         let angle = 5;
 
@@ -270,28 +277,17 @@ class Tile
         {
             return Math.floor(Math.random() * (max - min + 1)) + min;
         }
-/*
-        if ( DEBUGGING )
+        if ( Math.random() < gameState.jumbleCoinChance )
         {
-            if ( Math.random() < 0.05 )
-                this.unshiftBits();
-        }
-        else
-*/
-        {
-            if ( Math.random() < gameState.jumbleCoinChance )
-            {
-                if ( Math.random() > 0.5 )
-                    this.shiftBits(getRandomInt(0,4));
-                else
-                    this.unshiftBits(getRandomInt(0,4));
-            }
+            if ( Math.random() > 0.5 )
+                this.shiftBits(getRandomInt(0,4));
+            else
+                this.unshiftBits(getRandomInt(0,4));
         }
     }
 
-    // Tile implements the handleEvent interface
     handleEvent(event)
-    {
+    {   // Tile implements the handleEvent interface
         if ( event.type != 'click' )
         {
             console.log(event);
@@ -300,9 +296,17 @@ class Tile
 
         if ( this.isGridComplete() )
         {
-            window.location.reload(false);
+            if ( globals.eleShutter ) globals.eleShutter.play();
+            window.setTimeout( () => {
+                window.location.reload(false);
+            }, 500);            
             return;
         }
+
+        if ( 0 === this.coins )
+            return;
+
+        if ( globals.eleClick) globals.eleClick.play();
 
         if ( event.altKey )
             this.unJumble();
@@ -340,11 +344,6 @@ class Tile
 
     setGraphic()
     {
-        if ( 0 === this.coins )
-            return;
-
-        const bitCount = this.hammingWeight();
-
         const svg = document.createElementNS(SVG_NAMESPACE, 'svg');
         svg.setAttributeNS(null, 'width', strQ);
         svg.setAttributeNS(null, 'height', strQ);
@@ -353,56 +352,71 @@ class Tile
         svg.setAttributeNS(null, 'fill', 'none');
         this.div.addEventListener('click', this);
 
-        const g = document.createElementNS(SVG_NAMESPACE, 'g');
-        svg.appendChild(g);
-
-        if ( 1 == bitCount )
+        if ( this.coins )
         {
-            const eleLine = document.createElementNS(SVG_NAMESPACE, 'line');
-                const pt = this.getSinglePoint();
-                eleLine.setAttributeNS(null, 'x1', pt.x);
-                eleLine.setAttributeNS(null, 'y1', pt.y);
-                eleLine.setAttributeNS(null, 'x2', strQ50);
-                eleLine.setAttributeNS(null, 'y2', strQ50);
-            g.appendChild(eleLine);
+            const g = document.createElementNS(SVG_NAMESPACE, 'g');
+            svg.appendChild(g);
 
-            const eleCircle = document.createElementNS(SVG_NAMESPACE, 'circle');
-                eleCircle.setAttributeNS(null, 'r', strQ5);
-                eleCircle.setAttributeNS(null, 'cx', strQ50);
-                eleCircle.setAttributeNS(null, 'cy', strQ50);
-                eleCircle.setAttributeNS(null, 'fill', HIGHLIGHT_COLOR);
-            g.appendChild(eleCircle);
-        }
-        else
-        {
-/*
-    The initial M directive moves the pen to the first point (100,100).
-    Two co-ordinates follow the ‘Q’; the single control point (50,50) and the final point we’re drawing to (0,0).
-    It draws perfectly good straight lines, too, so no need for separate 'line' element.
-*/
-            let path = '';
-            let ldFirst = undefined;
-            for ( let ld of linkData )
+            const bitCount = this.hammingWeight();
+
+            if ( 1 == bitCount )
             {
-                if ( this.coins & ld.bit )
+                const eleLine = document.createElementNS(SVG_NAMESPACE, 'line');
+                    const b2p = linkData.find( ele => this.coins == ele.bit )
+                    eleLine.setAttributeNS(null, 'x1', b2p.x);
+                    eleLine.setAttributeNS(null, 'y1', b2p.y);
+                    eleLine.setAttributeNS(null, 'x2', strQ50);
+                    eleLine.setAttributeNS(null, 'y2', strQ50);
+                g.appendChild(eleLine);
+
+                const eleCircle = document.createElementNS(SVG_NAMESPACE, 'circle');
+                    eleCircle.setAttributeNS(null, 'r', strQ5);
+                    eleCircle.setAttributeNS(null, 'cx', strQ50);
+                    eleCircle.setAttributeNS(null, 'cy', strQ50);
+                    eleCircle.setAttributeNS(null, 'fill', HIGHLIGHT_COLOR);
+                g.appendChild(eleCircle);
+            }
+            else
+            {
+    /*
+        The initial M directive moves the pen to the first point (100,100).
+        Two co-ordinates follow the ‘Q’; the single control point (50,50) and the final point we’re drawing to (0,0).
+        It draws perfectly good straight lines, too, so no need for separate 'line' element.
+    */
+                let path = undefined;
+                let ldFirst = undefined;
+                for ( let ld of linkData )
                 {
-                    if ( path.length === 0 )
+                    if ( this.coins & ld.bit )
                     {
-                        ldFirst = ld;
-                        path = `M${ld.x},${ld.y}`;
-                    }
-                    else
-                    {
-                        path = path.concat(` Q${Q50},${Q50} ${ld.x},${ld.y}`);
+                        if ( !path )
+                        {
+                            ldFirst = ld;
+                            path = `M${ld.x},${ld.y}`;
+                        }
+                        else
+                        {
+    // As with the cubic Bezier curve, there is a shortcut for stringing together multiple quadratic Beziers, called with T.
+    // This shortcut looks at the previous control point you used and infers a new one from it.
+    // This means that after your first control point, you can make fairly complex shapes by specifying only end points.                        
+    //                        if ( path.includes(' Q') )
+    //                            if ( path.includes(' T') )
+    //                                path = path.concat(` ${ld.x},${ld.y}`);
+    //                            else
+    //                                path = path.concat(` T${ld.x},${ld.y}`);
+    //                        else
+                                path = path.concat(` Q${Q50},${Q50} ${ld.x},${ld.y}`);
+                        }
                     }
                 }
+                if ( bitCount > 3 )  // close the path for better aesthetics
+                    path = path.concat(` Q${Q50},${Q50} ${ldFirst.x},${ldFirst.y}`);
+                
+                const ele = document.createElementNS(SVG_NAMESPACE, 'path');
+                ele.setAttributeNS(null, 'd', path);
+                g.appendChild(ele);
             }
-            if ( bitCount > 3 )  // close the path for better aesthetics
-                path = path.concat(` Q${Q50},${Q50} ${ldFirst.x},${ldFirst.y}`);
-            
-            const ele = document.createElementNS(SVG_NAMESPACE, 'path');
-            ele.setAttributeNS(null, 'd', path);
-            g.appendChild(ele);
+
         }
 
         // this.div > svg > g > path|circle|line
@@ -529,7 +543,7 @@ class GridOfTiles
                 -webkit-text-fill-color: ${BACKGROUND_COLOR};
                 -webkit-text-stroke-width: 1px;
                 -webkit-text-stroke-color: ${INPROGRESS_COLOR}`;
-            lastEmptyTile.div.appendChild(document.createTextNode(gameState.level));
+            lastEmptyTile.div.innerText = gameState.level;
         }
 
         return this;
@@ -551,6 +565,7 @@ class GridOfTiles
 function main()
 {
     gameState = new GameState();
+    globals = new Globals();
 
     const got = new GridOfTiles(
         Math.max(Math.floor(window.innerWidth / Q), 3),
