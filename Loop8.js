@@ -7,16 +7,16 @@
 
 'use strict';
 
-const DEBUGGING = true;
+let DEBUGGING = false;
+let DESIGNING = false;
 
-const Q = 100;
-const strQ = Q.toString();
-const Q50 = Math.floor(Q/2);
-const strQ50 = Q50.toString();
-const Q25 = Math.floor(Q/4);
-const strQ25 = Q25.toString(); 
-const Q5 = Math.floor(Q/20);
-const strQ5 = Q5.toString(); 
+const Q = 100;                  const strQ = Q.toString();
+const Q50 = Math.floor(Q/2);    const strQ50 = Q50.toString();
+const Q25 = Math.floor(Q/4);    const strQ25 = Q25.toString();
+const Q10 = Math.floor(Q/10);   const strQ10 = Q10.toString(); 
+
+const Q3 = Math.floor(Q/3);
+const Q6 = Q3+Q3;
 
 const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
 
@@ -30,17 +30,17 @@ const WEST      = 0b01000000;
 const NORTHWEST = 0b10000000;
 
 const linkData = [
-    { bit: NORTH,       opp: SOUTH,     link:'n',    x: strQ50, y: '0'     },
-    { bit: NORTHEAST,   opp: SOUTHWEST, link:'ne',   x: strQ,   y: '0'     },
-    { bit: EAST,        opp: WEST,      link:'e',    x: strQ,   y: strQ50  },
-    { bit: SOUTHEAST,   opp: NORTHWEST, link:'se',   x: strQ,   y: strQ    },
-    { bit: SOUTH,       opp: NORTH,     link:'s',    x: strQ50, y: strQ    },
-    { bit: SOUTHWEST,   opp: NORTHEAST, link:'sw',   x: '0',    y: strQ    },
-    { bit: WEST,        opp: EAST,      link:'w',    x: '0',    y: strQ50  },
-    { bit: NORTHWEST,   opp: SOUTHEAST, link:'nw',   x: '0',    y: '0'     }
+    { bit: NORTH,       oppBit: SOUTH,     link:'n',    oppLink:'s',    x: strQ50, y: '0',      rect:[Q3,0,Q6,Q3]   },
+    { bit: NORTHEAST,   oppBit: SOUTHWEST, link:'ne',   oppLink:'sw',   x: strQ,   y: '0',      rect:[Q6,0,Q,Q3]    },
+    { bit: EAST,        oppBit: WEST,      link:'e',    oppLink:'w',    x: strQ,   y: strQ50,   rect:[Q6,Q3,Q,Q6]   },
+    { bit: SOUTHEAST,   oppBit: NORTHWEST, link:'se',   oppLink:'nw',   x: strQ,   y: strQ,     rect:[Q6,Q6,Q,Q]    },
+    { bit: SOUTH,       oppBit: NORTH,     link:'s',    oppLink:'n',    x: strQ50, y: strQ,     rect:[Q3,Q6,Q6,Q]   },
+    { bit: SOUTHWEST,   oppBit: NORTHEAST, link:'sw',   oppLink:'ne',   x: '0',    y: strQ,     rect:[0,Q6,Q3,Q]    },
+    { bit: WEST,        oppBit: EAST,      link:'w',    oppLink:'e',    x: '0',    y: strQ50,   rect:[0,Q3,Q3,Q6]   },
+    { bit: NORTHWEST,   oppBit: SOUTHEAST, link:'nw',   oppLink:'se',   x: '0',    y: '0',      rect:[0,0,Q3,Q3]    }
 ];
 
-const PLACE_COIN_CHANCE = 0.33;
+const PLACE_COIN_CHANCE = 0.2;
 
 // https://en.wikipedia.org/wiki/Web_colors
 const BACKGROUND_COLOR = 'lightblue';
@@ -48,8 +48,15 @@ const INPROGRESS_COLOR = 'darkblue';
 const COMPLETED_COLOR = 'black';
 const HIGHLIGHT_COLOR = 'darkorange';
 
+const prebuilt = [
+    '{"type":"8","numX":11,"numY":9,"coins":[20,64,24,60,96,24,0,8,4,16,32,13,112,19,131,160,1,172,84,108,155,0,26,133,105,2,0,22,32,165,65,149,240,21,210,4,208,0,37,70,72,0,39,65,9,25,56,45,98,32,8,16,162,8,8,0,167,199,242,130,40,16,163,12,104,161,10,12,74,17,10,4,255,112,2,178,80,20,112,72,169,8,178,47,209,38,67,0,3,0,3,4,198,195,0,135,64,0,0]}',
+    '{"type":"8","numX":"5","numY":"5","coins":[20,84,84,84,80,21,85,85,85,81,21,85,85,85,81,21,85,85,85,81,5,69,69,69,65]}'
+];
+
 let gameState = null;
 let globals = null;
+
+const isOdd = (x) => { return (x&1)==1; };
 
 function addStyle()
 {   // this == undefined
@@ -64,6 +71,20 @@ function removeStyle()
     let ele = null;
     while ( ele = document.querySelector('head>style') )
         ele.parentNode.removeChild(ele);
+}
+
+function addLevelDisplay(lastEmptyTile)
+{
+    if ( lastEmptyTile )
+    {
+        lastEmptyTile.div.style.cssText = `display: block; 
+            text-align: center; 
+            font-size: ${gameState._gridsSolved>998?strQ25:strQ50}px;
+            -webkit-text-fill-color: ${BACKGROUND_COLOR};
+            -webkit-text-stroke-width: 1px;
+            -webkit-text-stroke-color: ${INPROGRESS_COLOR}`;
+        lastEmptyTile.div.innerText = gameState.level;
+    }
 }
 
 class GameState
@@ -125,6 +146,39 @@ class Tile
         this.div = null;
     }
 
+    getCoinToToggle(x, y)
+    {
+        function _isInRect(x,y, x1,y1, x2,y2)
+        {
+            return ( x >= x1 && y >= y1 && x < x2 && y < y2 );
+        }
+
+        for ( let ld of linkData )
+            if ( _isInRect(x,y, ...ld.rect) )
+                return ld;
+        return null;
+    }
+
+    toggleCoin(ld)
+    {
+        if ( null == ld || null == this[ld.link] )
+            return;
+
+        if ( this.coins & ld.bit )
+        {
+            this.coins &= ~ld.bit;
+            this[ld.link].coins &= ~ld.oppBit;
+        }
+        else
+        {
+            this.coins |= ld.bit;
+            this[ld.link].coins |= ld.oppBit;
+        }
+
+        this.setGraphic();
+        this[ld.link].setGraphic();
+    }
+
     hammingWeight()
     {
 //        return this.coins.toString(2).split('1').length-1;
@@ -136,24 +190,26 @@ class Tile
         return ((v + (v >> 4) & 0xF0F0F0F) * 0x1010101) >> 24;
     }
 
-    spinSVG(clockwise=true, degrees=45)
+    rotate5(clockwise=true, degrees=45)
     {
-        const that = this;
-        let angle = 5;
-
         const g = this.div.querySelector('g');
-        const tilt = function()
-        {   // this == null
-            g.setAttributeNS(null, 'transform', `rotate(${clockwise?'':'-'}${angle} ${Q50},${Q50})`);
-            angle += 5;
-            if ( angle < degrees )
-                window.requestAnimationFrame(tilt);
-            else
-                window.requestAnimationFrame(that.setGraphic.bind(that));
-        };
-        window.requestAnimationFrame(tilt);
-    }
 
+        return new Promise(function(resolve, reject)
+        {
+            let angle = 5;
+
+            const spinSVG = () => {
+                g.setAttributeNS(null, 'transform', `rotate(${clockwise?'':'-'}${angle} ${Q50},${Q50})`);
+                angle += 5;
+                if ( angle < degrees )
+                    window.requestAnimationFrame(spinSVG);
+                else
+                    resolve();
+            };
+            window.requestAnimationFrame(spinSVG);
+        });
+    }
+    
     shiftBits(num = 1)
     {
         while ( num-- )
@@ -177,18 +233,6 @@ class Tile
         }
     }
 
-    rotate()
-    {
-        this.spinSVG(true, 45);
-        this.shiftBits();
-    }
-
-    unRotate()
-    {
-        this.spinSVG(false, 45);
-        this.unshiftBits();
-    }
-
     unJumble()
     {
         this.coins = this.originalCoins;
@@ -201,7 +245,7 @@ class Tile
         {
             if ( this[chkLink.link] === null )
                 return false;
-            if ( !(this[chkLink.link].coins & chkLink.opp) )
+            if ( !(this[chkLink.link].coins & chkLink.oppBit) )
                 return false;
         }
         return true;
@@ -271,26 +315,56 @@ class Tile
         }
     }
 
+    placeCoinEven()
+    {   // for aesthetics, look better if number of coins in tile is even
+        const bitCount = this.hammingWeight();
+        if ( isOdd(bitCount) )
+        {
+            if ( this.e && !(this.coins & EAST) )
+            {
+                this.coins = this.coins | EAST;
+                this.e.coins = this.e.coins | WEST;
+            }
+            else if ( this.s && !(this.coins & SOUTH) )
+            {
+                this.coins = this.coins | SOUTH;
+                this.s.coins = this.s.coins | NORTH;
+            }
+        }
+    }
+
     jumbleCoin()
     {
+        if ( DESIGNING )
+            return;
+
         function getRandomInt(min, max)
         {
             return Math.floor(Math.random() * (max - min + 1)) + min;
         }
-        if ( Math.random() < gameState.jumbleCoinChance )
+
+        if ( DEBUGGING )
         {
-            if ( Math.random() > 0.5 )
-                this.shiftBits(getRandomInt(0,4));
-            else
-                this.unshiftBits(getRandomInt(0,4));
+            if ( Math.random() > 0.95 )
+                this.unshiftBits();
+        }
+        else
+        {
+            if ( Math.random() < gameState.jumbleCoinChance )
+            {
+                if ( Math.random() > 0.5 )
+                    this.shiftBits(getRandomInt(0,4));
+                else
+                    this.unshiftBits(getRandomInt(0,4));
+            }
         }
     }
 
     handleEvent(event)
     {   // Tile implements the handleEvent interface
-        if ( event.type != 'click' )
+        if ( DESIGNING )
         {
-            console.log(event);
+            this.toggleCoin(this.getCoinToToggle(event.offsetX, event.offsetY));
             return;
         }
 
@@ -308,38 +382,31 @@ class Tile
 
         if ( globals.eleClick) globals.eleClick.play();
 
-        if ( event.altKey )
-            this.unJumble();
-        else if ( event.shiftKey || event.ctrlKey )
-            this.unRotate();
-        else
-            this.rotate();
+        this.rotate5(!event.altKey, 45)
+        .then( () => { 
+            event.altKey ? this.unshiftBits() : this.shiftBits();
+            this.setGraphic(); 
+            if ( this.isGridComplete() )
+            {
+                gameState.gridSolved();
 
-        if ( this.isGridComplete() )
-        {
-            gameState.gridSolved();
-
-            removeStyle();
-            for ( const t of this.createIterator() )
-                if ( 0 === t.coins && t.div.innerText )
-                    t.div.innerText = '';       // remove the level display
-
-            // TODO async/Promise?
-            window.setTimeout( () => {
+                removeStyle();
+    
                 for ( const t of this.createIterator() )
                     t.strokeItBlack(COMPLETED_COLOR);
-            }, 500);
-        }
+            }
+        }); 
     }
 
     strokeItBlack(strokeColor=COMPLETED_COLOR)
     {
-        let ele = this.div.querySelector('circle');
-        if ( ele )
-            ele.setAttributeNS(null, 'fill', strokeColor);
-        ele = this.div.querySelector('svg');
+        const ele = this.div.querySelector('svg');
         if ( ele )
             ele.setAttributeNS(null, 'stroke', strokeColor);
+
+        for ( const t of this.createIterator() )
+            if ( 0 === t.coins && t.div.innerText )
+                t.div.style['-webkit-text-stroke-color'] = strokeColor;
     }
 
     setGraphic()
@@ -348,8 +415,17 @@ class Tile
         svg.setAttributeNS(null, 'width', strQ);
         svg.setAttributeNS(null, 'height', strQ);
         svg.setAttributeNS(null, 'stroke', INPROGRESS_COLOR);
-        svg.setAttributeNS(null, 'stroke-width', DEBUGGING ? this.coins == this.originalCoins ? '1' : '4' : '1');
+        svg.setAttributeNS(null, 'stroke-width', DEBUGGING ? this.coins == this.originalCoins ? '1' : '2' : '1');
         svg.setAttributeNS(null, 'fill', 'none');
+        
+        if ( DESIGNING )
+        {
+            const eleSvgPath = document.createElementNS(SVG_NAMESPACE, 'path');
+            eleSvgPath.setAttributeNS(null, 'd', `M 0,0 L ${Q},0 L ${Q},${Q} L 0,${Q} Z`);
+            eleSvgPath.setAttributeNS(null, 'stroke-width', '1');
+            svg.appendChild(eleSvgPath);
+        }
+
         this.div.addEventListener('click', this);
 
         if ( this.coins )
@@ -362,7 +438,7 @@ class Tile
             if ( 1 == bitCount )
             {
                 const eleLine = document.createElementNS(SVG_NAMESPACE, 'line');
-                    const b2p = linkData.find( ele => this.coins == ele.bit )
+                    const b2p = linkData.find( ele => this.coins == ele.bit );
                     eleLine.setAttributeNS(null, 'x1', b2p.x);
                     eleLine.setAttributeNS(null, 'y1', b2p.y);
                     eleLine.setAttributeNS(null, 'x2', strQ50);
@@ -370,10 +446,10 @@ class Tile
                 g.appendChild(eleLine);
 
                 const eleCircle = document.createElementNS(SVG_NAMESPACE, 'circle');
-                    eleCircle.setAttributeNS(null, 'r', strQ5);
+                    eleCircle.setAttributeNS(null, 'r', strQ10);
                     eleCircle.setAttributeNS(null, 'cx', strQ50);
                     eleCircle.setAttributeNS(null, 'cy', strQ50);
-                    eleCircle.setAttributeNS(null, 'fill', HIGHLIGHT_COLOR);
+                    eleCircle.setAttributeNS(null, 'fill', BACKGROUND_COLOR);
                 g.appendChild(eleCircle);
             }
             else
@@ -409,14 +485,76 @@ class Tile
                         }
                     }
                 }
-                if ( bitCount > 3 )  // close the path for better aesthetics
+                /*
+                    Special cases that look bad
+                        NORTHWEST - NORTH - NORTHWEST
+                        WEST - NORTHWEST - NORTH
+                    All with three coins, so we try to avoid having three coins
+                */
+                if ( bitCount > 2 )  // close the path for better aesthetics
+                {
                     path = path.concat(` Q${Q50},${Q50} ${ldFirst.x},${ldFirst.y}`);
-                
+                }
                 const ele = document.createElementNS(SVG_NAMESPACE, 'path');
                 ele.setAttributeNS(null, 'd', path);
                 g.appendChild(ele);
             }
 
+        }
+
+        // this.div > svg > g > path|circle|line
+        while ( this.div.lastChild )
+            this.div.removeChild(this.div.lastChild);
+        this.div.appendChild(svg);
+    }
+
+    setGraphicUglyLines()
+    {
+        const svg = document.createElementNS(SVG_NAMESPACE, 'svg');
+        svg.setAttributeNS(null, 'width', strQ);
+        svg.setAttributeNS(null, 'height', strQ);
+        svg.setAttributeNS(null, 'stroke', INPROGRESS_COLOR);
+        svg.setAttributeNS(null, 'stroke-width', DEBUGGING ? this.coins == this.originalCoins ? '1' : '4' : '1');
+        svg.setAttributeNS(null, 'fill', 'none');
+        
+        if ( DESIGNING )
+        {
+            const eleSvgPath = document.createElementNS(SVG_NAMESPACE, 'path');
+            eleSvgPath.setAttributeNS(null, 'd', `M 0,0 L ${Q},0 L ${Q},${Q} L 0,${Q} Z`);
+            eleSvgPath.setAttributeNS(null, 'stroke-width', '1');
+            svg.appendChild(eleSvgPath);
+        }
+
+        this.div.addEventListener('click', this);
+
+        if ( this.coins )
+        {
+            const g = document.createElementNS(SVG_NAMESPACE, 'g');
+            svg.appendChild(g);
+
+            const bitCount = this.hammingWeight();
+
+            for ( let ld of linkData )
+            {
+                if ( this.coins & ld.bit )
+                {
+                    const eleLine = document.createElementNS(SVG_NAMESPACE, 'line');
+                    eleLine.setAttributeNS(null, 'x1', ld.x);
+                    eleLine.setAttributeNS(null, 'y1', ld.y);
+                    eleLine.setAttributeNS(null, 'x2', strQ50);
+                    eleLine.setAttributeNS(null, 'y2', strQ50);
+                    g.appendChild(eleLine);
+                }
+            }
+            if ( 1 == bitCount )
+            {
+                const eleCircle = document.createElementNS(SVG_NAMESPACE, 'circle');
+                eleCircle.setAttributeNS(null, 'r', (Q/10).toString());
+                eleCircle.setAttributeNS(null, 'cx', strQ50);
+                eleCircle.setAttributeNS(null, 'cy', strQ50);
+                eleCircle.setAttributeNS(null, 'fill', BACKGROUND_COLOR);
+                g.appendChild(eleCircle);
+            }
         }
 
         // this.div > svg > g > path|circle|line
@@ -460,6 +598,8 @@ class GridOfTiles
             if ( t.w && t.w.s ) { t.sw = t.w.s; t.w.s.ne = t; }         // SOUTHWEST
             if ( t.w && t.w.n ) { t.nw = t.w.n; t.w.n.se = t; }         // NORTHWEST
         }
+
+        document.body.onkeydown = this.handleEventKeyDown.bind(this);
     }
 
     createFirstRow(n, leftTile)
@@ -473,21 +613,37 @@ class GridOfTiles
         return t;
     }
 
-    placeCoins()
+    placeCoins(arrCoins)
     {
+        if ( arrCoins )
+        {
+            let i = 0;
+            for ( const t of this.createIterator() )
+                t.coins = arrCoins[i++];
+        }
+        else
+        {
+            for ( const t of this.createIterator() )
+                t.placeCoin();
+            for ( const t of this.createIterator() )
+                t.placeCoinEven();
+        }
+
         for ( const t of this.createIterator() )
-            t.placeCoin();
+            t.originalCoins = t.coins;
 
         return this;
     }
 
     jumbleCoins()
     {
+        if ( DESIGNING )
+            return this;
+            
         while ( this.grid.isGridComplete() )
         {
             for ( const t of this.createIterator() )
             {
-                t.originalCoins = t.coins;
                 t.jumbleCoin();
             }
         }
@@ -501,6 +657,8 @@ class GridOfTiles
         // create a grid container; all direct children will become grid items
         const eleWrapper = document.createElement('div');
         // set attributes; "grid-gap" becomes camelCase "gridGrap"
+        eleWrapper.id = 'wrapper';
+
         eleWrapper.style.display = 'grid';
         // @ts-ignore: Property 'gridGap' does not exist on type 'CSSStyleDeclaration'
         eleWrapper.style.gridGap = '0px 0px';   // auto-sets .gridRowGap="0px" and .gridColumnGap="0px"
@@ -535,16 +693,7 @@ class GridOfTiles
             if ( 0 === t.coins )
                 lastEmptyTile = t;
 
-        if ( lastEmptyTile )
-        {
-            lastEmptyTile.div.style.cssText = `display: block; 
-                text-align: center; 
-                font-size: ${gameState._gridsSolved>998?strQ25:strQ50}px;
-                -webkit-text-fill-color: ${BACKGROUND_COLOR};
-                -webkit-text-stroke-width: 1px;
-                -webkit-text-stroke-color: ${INPROGRESS_COLOR}`;
-            lastEmptyTile.div.innerText = gameState.level;
-        }
+        addLevelDisplay(lastEmptyTile);
 
         return this;
     }
@@ -560,18 +709,78 @@ class GridOfTiles
             }
         }
     }
+
+    handleEventKeyDown(event)
+    {   // 'event' is a KeyboardEvent object, event.type == "keydown"
+        if ( event.code == 'KeyB' )
+        {
+            for ( const t of this.createIterator() )
+                t.coins = t.originalCoins = 0;
+            this.setGraphics();            
+        }
+
+        if ( event.code == 'KeyS' )
+        {
+            var arrCoins = [];
+            for ( const t of this.createIterator() )
+                arrCoins.push(t.coins);
+
+            var obj = {
+                type: '8',
+                numX: this.numX,
+                numY: this.numY,
+                coins: arrCoins
+            };
+            console.log(JSON.stringify(obj));
+        }
+
+        if ( event.code == 'KeyJ' )
+        {
+            for ( const t of this.createIterator() )
+                t.jumbleCoin();
+            this.setGraphics();
+        }
+
+        if ( event.code == 'KeyU' )
+        {
+            for ( const t of this.createIterator() )
+                t.coins = t.originalCoins;
+            this.setGraphics();            
+        }
+    }
 }
 
 function main()
 {
+    var urlParams = {},
+        match,
+        pl     = /\+/g,  // Regex for replacing addition symbol with a space
+        search = /([^&=]+)=?([^&]*)/g,
+        decode = (s) => decodeURIComponent(s.replace(pl, ' ')),
+        query  = window.location.search.substring(1);
+
+    while (match = search.exec(query))
+        urlParams[decode(match[1])] = decode(match[2]);
+
+    DEBUGGING = urlParams.debug ? urlParams.debug : false;
+    DESIGNING = urlParams.design ? urlParams.design : false;
+    const numX = urlParams.x ? urlParams.x : Math.max(Math.floor(window.innerWidth / Q), 3);
+    const numY = urlParams.y ? urlParams.y : Math.max(Math.floor(window.innerHeight / Q), 3);
+    
     gameState = new GameState();
     globals = new Globals();
 
-    const got = new GridOfTiles(
-        Math.max(Math.floor(window.innerWidth / Q), 3),
-        Math.max(Math.floor(window.innerHeight / Q), 3)
-    );
-    got.createHTML().placeCoins().jumbleCoins().setGraphics();
+    if ( urlParams.load && prebuilt[urlParams.load] )
+    {
+        const objLoad = JSON.parse(prebuilt[urlParams.load]);
+        const got = new GridOfTiles(objLoad.numX, objLoad.numY);
+        got.createHTML().placeCoins(objLoad.coins).jumbleCoins().setGraphics();
+    }
+    else
+    {
+        const got = new GridOfTiles(numX, numY);
+        got.createHTML().placeCoins().jumbleCoins().setGraphics();
+    }
 }
 
 main();
