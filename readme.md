@@ -6,7 +6,7 @@ Original concept by Infinity Games (Prof Dr Augusti Abreu from Portual).
 
 ## Gameplay
 
-The puzzle fills the available browser window. Click on a piece to rotate it 45&deg; clockwise (or hold down CTRL to rotate it anticlockwise). When the puzzle is completed,
+The puzzle fills the available browser window. Click on a piece to rotate it 45&deg; clockwise (or hold down Alt to rotate it anticlockwise). When the puzzle is completed,
 the loops change colour and won't rotate any more. Click again to create a new puzzle. Resize the browser window to make the puzzle easier or harder.
 The puzzles get harder to solve the more times you complete a puzzle.
 The idea is to make the game as simple and frictionless as possible; I've taken everything out that you don't really need.

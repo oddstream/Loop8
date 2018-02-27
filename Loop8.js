@@ -2,7 +2,7 @@
 // TODO check for memory leaks
 // TODO find out why SVG onend event doesn't work
 // TODO graphics gap at some junctions
-// TODO the level display sometimes highlights, no idea why
+// TODO the level display sometimes highlights/gets focus, no idea why
 // TODO T not working in SVG path after Q
 
 'use strict';
@@ -100,12 +100,27 @@ class GameState
     gridSolved()
     {
         this._gridsSolved += 1;
-        window.localStorage.setItem('gridsSolved', this._gridsSolved.toString());
+        try
+        {
+            window.localStorage.setItem('gridsSolved', this._gridsSolved.toString());
+        }
+        catch (err)
+        {
+            console.log('window.localStorage not available');
+        }
     }
 
     _getLocalStorageInt(key, defaultValue)
     {   // this == GameState
-        const val = window.localStorage.getItem(key);
+        let val = '';
+        try
+        {
+            val = window.localStorage.getItem(key);
+        }
+        catch (err)
+        {
+            console.log('window.localStorage not available');
+        }
         const num = parseInt(val);  // parseInt(null) returns NaN
         if ( isNaN(num) )
             return defaultValue;
@@ -146,7 +161,7 @@ class Tile
         this.div = null;
     }
 
-    getCoinToToggle(x, y)
+    _getCoinToToggle(x, y)
     {
         function _isInRect(x,y, x1,y1, x2,y2)
         {
@@ -159,7 +174,7 @@ class Tile
         return null;
     }
 
-    toggleCoin(ld)
+    _toggleCoin(ld)
     {
         if ( null == ld || null == this[ld.link] )
             return;
@@ -194,7 +209,7 @@ class Tile
     {
         const g = this.div.querySelector('g');
 
-        return new Promise(function(resolve, reject)
+        return new Promise(function(resolve /*, reject*/)
         {
             let angle = 5;
 
@@ -361,10 +376,10 @@ class Tile
     }
 
     handleEvent(event)
-    {   // Tile implements the handleEvent interface
+    {   // Tile implements the EventListener interface which has a handleEvent method
         if ( DESIGNING )
         {
-            this.toggleCoin(this.getCoinToToggle(event.offsetX, event.offsetY));
+            this._toggleCoin(this._getCoinToToggle(event.offsetX, event.offsetY));
             return;
         }
 
@@ -393,20 +408,20 @@ class Tile
                 removeStyle();
     
                 for ( const t of this.createIterator() )
-                    t.strokeItBlack(COMPLETED_COLOR);
+                    t.strokeItBlack();
             }
         }); 
     }
 
-    strokeItBlack(strokeColor=COMPLETED_COLOR)
+    strokeItBlack()
     {
         const ele = this.div.querySelector('svg');
         if ( ele )
-            ele.setAttributeNS(null, 'stroke', strokeColor);
+            ele.setAttributeNS(null, 'stroke', COMPLETED_COLOR);
 
         for ( const t of this.createIterator() )
             if ( 0 === t.coins && t.div.innerText )
-                t.div.style['-webkit-text-stroke-color'] = strokeColor;
+                t.div.style['-webkit-text-stroke-color'] = COMPLETED_COLOR;
     }
 
     setGraphic()
