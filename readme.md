@@ -30,4 +30,10 @@ The puzzle is complete when, for each tile, every coin has a matching reciprocal
 
 The coins for each tile are held as bits in a number. Tile rotation clockwise is done by rotating the bits in the number to the right.
 
-The game is implemented in two files, a minimal wrapper .html file and a script .js file. All the exciting HTML is created on the fly by the script.
+The game is implemented in three files, a minimal wrapper .html file and a a couple of script .js files. All the exciting HTML is created on the fly by the script.
+
+The .html wrapper can take "command line" style arguments to set the size of the puzzle, or put the game into debug or design mode, for example
+
+    /somepath/Loop6.html?x=7&y=5&debug=1
+    
+Tested in the uptodate versions of Chrome, Brave, Firefox and Edge.

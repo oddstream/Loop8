@@ -2,18 +2,18 @@
 // TODO check for memory leaks
 // TODO find out why SVG onend event doesn't work
 // TODO graphics gap at some junctions
-// TODO the level display sometimes highlights/gets focus, no idea why
 // TODO T not working in SVG path after Q
 
 'use strict';
 
+const gameState = new GameState();
+
 let DEBUGGING = false;
 let DESIGNING = false;
 
-const Q = 100;                  const strQ = Q.toString();
-const Q50 = Math.floor(Q/2);    const strQ50 = Q50.toString();
-const Q25 = Math.floor(Q/4);    const strQ25 = Q25.toString();
-const Q10 = Math.floor(Q/10);   const strQ10 = Q10.toString(); 
+const Q = 100;                  const strQ = String(Q);
+const Q50 = Math.floor(Q/2);    const strQ50 = String(Q50);
+const Q10 = Math.floor(Q/10);   const strQ10 = String(Q10); 
 
 const Q3 = Math.floor(Q/3);
 const Q6 = Q3+Q3;
@@ -53,7 +53,6 @@ const prebuilt = [
     '{"type":"8","numX":"5","numY":"5","coins":[20,84,84,84,80,21,85,85,85,81,21,85,85,85,81,21,85,85,85,81,5,69,69,69,65]}'
 ];
 
-let gameState = null;
 let globals = null;
 
 const isOdd = (x) => { return (x&1)==1; };
@@ -71,73 +70,6 @@ function removeStyle()
     let ele = null;
     while ( ele = document.querySelector('head>style') )
         ele.parentNode.removeChild(ele);
-}
-
-function addLevelDisplay(lastEmptyTile)
-{
-    if ( lastEmptyTile )
-    {
-        lastEmptyTile.div.style.cssText = `display: block; 
-            text-align: center; 
-            font-size: ${gameState._gridsSolved>998?strQ25:strQ50}px;
-            -webkit-text-fill-color: ${BACKGROUND_COLOR};
-            -webkit-text-stroke-width: 1px;
-            -webkit-text-stroke-color: ${INPROGRESS_COLOR}`;
-        lastEmptyTile.div.innerText = gameState.level;
-    }
-}
-
-class GameState
-{
-    constructor()
-    {   // this == GameState
-        this._gridsSolved = this._getLocalStorageInt('gridsSolved', 0);
-        this._jumbleCoinChance = this._gridsSolved / 200;
-        this._jumbleCoinChance = Math.min(this._jumbleCoinChance, 0.5);
-        this._jumbleCoinChance = Math.max(this._jumbleCoinChance, 0.05);
-    }
-
-    gridSolved()
-    {
-        this._gridsSolved += 1;
-        try
-        {
-            window.localStorage.setItem('gridsSolved', this._gridsSolved.toString());
-        }
-        catch (err)
-        {
-            console.log('window.localStorage not available');
-        }
-    }
-
-    _getLocalStorageInt(key, defaultValue)
-    {   // this == GameState
-        let val = '';
-        try
-        {
-            val = window.localStorage.getItem(key);
-        }
-        catch (err)
-        {
-            console.log('window.localStorage not available');
-        }
-        const num = parseInt(val);  // parseInt(null) returns NaN
-        if ( isNaN(num) )
-            return defaultValue;
-        if ( num < 0 )
-            return defaultValue;
-        return num;
-    }
-    
-    get level()
-    {
-        return (this._gridsSolved+1).toString();
-    }
-
-    get jumbleCoinChance()
-    {
-        return this._jumbleCoinChance;
-    }
 }
 
 class Globals
@@ -192,17 +124,6 @@ class Tile
 
         this.setGraphic();
         this[ld.link].setGraphic();
-    }
-
-    hammingWeight()
-    {
-//        return this.coins.toString(2).split('1').length-1;
-//        return this.coins.toString(2).match(/1/g).length;
-        // https://stackoverflow.com/questions/109023/how-to-count-the-number-of-set-bits-in-a-32-bit-integer
-        let v = this.coins;
-        v = v - ((v >> 1) & 0x55555555);                // put count of each 2 bits into those 2 bits
-        v = (v & 0x33333333) + ((v >> 2) & 0x33333333); // put count of each 4 bits into those 4 bits  
-        return ((v + (v >> 4) & 0xF0F0F0F) * 0x1010101) >> 24;
     }
 
     rotate5(clockwise=true, degrees=45)
@@ -332,7 +253,7 @@ class Tile
 
     placeCoinEven()
     {   // for aesthetics, look better if number of coins in tile is even
-        const bitCount = this.hammingWeight();
+        const bitCount = Util.hammingWeight(this.coins);
         if ( isOdd(bitCount) )
         {
             if ( this.e && !(this.coins & EAST) )
@@ -448,7 +369,7 @@ class Tile
             const g = document.createElementNS(SVG_NAMESPACE, 'g');
             svg.appendChild(g);
 
-            const bitCount = this.hammingWeight();
+            const bitCount = Util.hammingWeight(this.coins);
 
             if ( 1 == bitCount )
             {
@@ -514,7 +435,6 @@ class Tile
                 ele.setAttributeNS(null, 'd', path);
                 g.appendChild(ele);
             }
-
         }
 
         // this.div > svg > g > path|circle|line
@@ -547,7 +467,7 @@ class Tile
             const g = document.createElementNS(SVG_NAMESPACE, 'g');
             svg.appendChild(g);
 
-            const bitCount = this.hammingWeight();
+            const bitCount = Util.hammingWeight(this.coins);
 
             for ( let ld of linkData )
             {
@@ -564,7 +484,7 @@ class Tile
             if ( 1 == bitCount )
             {
                 const eleCircle = document.createElementNS(SVG_NAMESPACE, 'circle');
-                eleCircle.setAttributeNS(null, 'r', (Q/10).toString());
+                eleCircle.setAttributeNS(null, 'r', strQ10);
                 eleCircle.setAttributeNS(null, 'cx', strQ50);
                 eleCircle.setAttributeNS(null, 'cy', strQ50);
                 eleCircle.setAttributeNS(null, 'fill', BACKGROUND_COLOR);
@@ -700,15 +620,10 @@ class GridOfTiles
 
     setGraphics()
     {
+        document.title = `Infinity Loop Level ${gameState.level}`;
+
         for ( const t of this.createIterator() )
             t.setGraphic();
-
-        let lastEmptyTile = null;
-        for ( const t of this.createIterator() )
-            if ( 0 === t.coins )
-                lastEmptyTile = t;
-
-        addLevelDisplay(lastEmptyTile);
 
         return this;
     }
@@ -741,12 +656,14 @@ class GridOfTiles
                 arrCoins.push(t.coins);
 
             var obj = {
+                id: Util.BSD16(arrCoins, this.numX + (this.numY * 256)),
                 type: '8',
                 numX: this.numX,
                 numY: this.numY,
                 coins: arrCoins
             };
             console.log(JSON.stringify(obj));
+            Util.saveLoop(obj);
         }
 
         if ( event.code == 'KeyJ' )
@@ -767,29 +684,26 @@ class GridOfTiles
 
 function main()
 {
-    var urlParams = {},
-        match,
-        pl     = /\+/g,  // Regex for replacing addition symbol with a space
-        search = /([^&=]+)=?([^&]*)/g,
-        decode = (s) => decodeURIComponent(s.replace(pl, ' ')),
-        query  = window.location.search.substring(1);
-
-    while (match = search.exec(query))
-        urlParams[decode(match[1])] = decode(match[2]);
+    const urlParams = Util.getCommandLine();
 
     DEBUGGING = urlParams.debug ? urlParams.debug : false;
     DESIGNING = urlParams.design ? urlParams.design : false;
     const numX = urlParams.x ? urlParams.x : Math.max(Math.floor(window.innerWidth / Q), 3);
     const numY = urlParams.y ? urlParams.y : Math.max(Math.floor(window.innerHeight / Q), 3);
     
-    gameState = new GameState();
     globals = new Globals();
 
-    if ( urlParams.load && prebuilt[urlParams.load] )
+    if ( urlParams.load )
     {
-        const objLoad = JSON.parse(prebuilt[urlParams.load]);
-        const got = new GridOfTiles(objLoad.numX, objLoad.numY);
-        got.createHTML().placeCoins(objLoad.coins).jumbleCoins().setGraphics();
+        fetch('http://localhost:3000/loops?type=8') // returns a Promise that resolves to a Response object
+        .then( resolve => resolve.json(), reject => console.error(reject) )
+        .then( arrLoops =>
+        {
+            const objLoad = arrLoops[Math.floor(Math.random()*arrLoops.length)];
+            const got = new GridOfTiles(objLoad.numX, objLoad.numY);
+            got.createHTML().placeCoins(objLoad.coins).jumbleCoins().setGraphics();
+        }, reject => console.error(reject))
+        .catch(err => console.error(err));
     }
     else
     {
